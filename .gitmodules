@@ -1,0 +1,3 @@
+[submodule "3rdparty/sqlite-amalgamation"]
+	path = 3rdparty/sqlite-amalgamation
+	url = https://github.com/rhuijben/sqlite-amalgamation.git
