@@ -1,0 +1,142 @@
+cmake_minimum_required(VERSION 3.22)
+
+set(PROJECT_NAME sqlogger)
+
+project(${PROJECT_NAME})
+
+set(VERSION_MAJOR 1)
+set(VERSION_MINOR 0)
+set(VERSION_BUILD 0)
+set(VERSION_FULL ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_BUILD})
+
+configure_file("sqlogger_config.h.in" "sqlogger_config.h" @ONLY)
+
+# Set C++ standard (C++17)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
+
+option(BUILD_SHARED_LIBS "Build shared libs" OFF)
+option(USE_SYSTEM_SQLITE "Use system SQLite" OFF)
+option(BUILD_TEST "Build test app" ON)
+
+# Configuration for symbol export (for Windows)
+if (WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+# Find SQLite3 library
+if (USE_SYSTEM_SQLITE)
+    find_package(SQLite3 REQUIRED)
+    if (SQLite3_FOUND)
+        message(STATUS "SQLite3 found: "${SQLite3_INCLUDE_DIR})
+        include_directories(${SQLite3_INCLUDE_DIR})
+    endif()
+else()
+    add_subdirectory(./3rdparty/sqlite-amalgamation)
+endif()
+
+# Add source files
+set(HEADERS
+    "./include/logger.h"
+    "./include/database_interface.h"
+    "./include/sqlite_database.h"
+    "./include/mock_database.h"
+    "./include/log_writer.h"
+    "./include/log_reader.h"
+    "./include/log_entry.h"
+    "./include/thread_pool.h"
+    "./include/log_export.h"
+)
+
+set(SOURCES
+    "./src/logger.cpp"
+    "./src/sqlite_database.cpp"
+    "./src/log_writer.cpp"
+    "./src/log_reader.cpp"
+    "./src/thread_pool.cpp"
+    "./src/log_export.cpp"
+)
+
+# Create the library
+if (BUILD_SHARED_LIBS)
+    add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES})
+else()
+    add_library(${PROJECT_NAME} STATIC ${HEADERS} ${SOURCES})
+endif()
+
+# Link SQLite3
+if (USE_SYSTEM_SQLITE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE SQLite::SQLite3)
+else()
+    if (BUILD_SHARED_LIBS)
+        target_link_libraries(${PROJECT_NAME} PRIVATE sqlite3-shared)    
+    else()
+        target_link_libraries(${PROJECT_NAME} PRIVATE sqlite3-static)
+    endif()
+endif()
+
+# Set properties for symbol export
+if (WIN32)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LOGGER_EXPORTS)
+endif()
+
+if (WIN32)
+   target_link_libraries(${PROJECT_NAME} PRIVATE Rpcrt4)
+endif()
+
+# Set output directory for the library
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Set directory for header files
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR})
+
+if (NOT USE_SYSTEM_SQLITE)
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/sqlite-amalgamation)
+endif()
+
+# Set installation directory for the library
+install(TARGETS ${PROJECT_NAME}
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+# Set installation directory for header files
+install(FILES ${HEADERS} DESTINATION include)
+
+if (BUILD_TEST)
+set(TEST_NAME test_${PROJECT_NAME})
+
+set(SOURCE_TEST_logger
+        "test/test_logger.cpp"
+)
+
+if (BUILD_SHARED_LIBS)
+    add_executable(${TEST_NAME} ${SOURCE_TEST_logger})
+else()
+    add_executable(${TEST_NAME} ${SOURCE_TEST_logger} ${HEADERS} ${SOURCES})
+endif()
+
+target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME})
+
+# Set output directory for tests
+set_target_properties(${TEST_NAME} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Add target for running tests
+enable_testing()
+add_test(NAME logger_test COMMAND ${TEST_NAME})
+
+install(TARGETS ${TEST_NAME} RUNTIME DESTINATION bin)
+endif()
+
