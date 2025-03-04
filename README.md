@@ -187,8 +187,11 @@ Returns:
 The Filter structure is used to define filtering criteria. It supports filtering by level, file, function, thread ID, and timestamp range.
 
    ```cpp
-struct Filter {
-    enum class Type {
+struct Filter
+{
+    enum class Type
+    {
+        Unknown = -1,
         Level,
         File,
         Function,
@@ -196,9 +199,10 @@ struct Filter {
         TimestampRange
     };
 
-    Type type; // The type of filter
-    std::string value; // The value to filter by (e.g., file name, thread ID)
-    std::string value2; // Optional second value (used for timestamp range)
+        Type type; /**< The type to filter on. */
+        std::string field; /**< The field to filter on. */
+        std::string op;    /**< The operator to use for filtering. */
+        std::string value; /**< The value to compare against. */
 };
    ```
 
