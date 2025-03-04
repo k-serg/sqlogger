@@ -31,7 +31,7 @@
 #define TEST_NUM_THREADS 4
 #define USE_SYNC_MODE 0
 #define PERFORMANCE_TEST_ENTRIES 100
-#define PRINT_LOGS 1
+#define PRINT_LOGS 0
 #define WAIT_UNTIL_EMPTY_MSEC 1000
 
 using namespace LogHelper;
