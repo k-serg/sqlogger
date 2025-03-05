@@ -20,14 +20,14 @@
 #ifndef MOCK_DATABASE_H
 #define MOCK_DATABASE_H
 
-#include "database_interface.h"
 #include <vector>
 #include <map>
 #include <string>
 #include <mutex>
 #include <algorithm>
 #include <functional>
-#include "logger.h"
+#include "log_entry.h"
+#include "database_interface.h"
 
 /**
  * @class MockDatabase

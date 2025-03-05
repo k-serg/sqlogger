@@ -98,7 +98,7 @@ class LOGGER_API Logger
          * @param numThreads The number of threads in the ThreadPool.
          * @param syncMode Whether to use synchronous mode.
          */
-        Logger(std::unique_ptr<IDatabase> database, bool syncMode = true, size_t numThreads = NUM_THREADS);
+        Logger(std::unique_ptr<IDatabase> database, const bool syncMode = true, const size_t numThreads = NUM_THREADS);
 
         /**
          * @brief Destructor for Logger. Stops all threads and releases resources.
@@ -115,7 +115,7 @@ class LOGGER_API Logger
         * @param level The severity level of the log message.
         * @param message The log message.
         */
-        void log(Level level, const std::string& message);
+        void log(const Level level, const std::string& message);
 
         /**
          * @brief Clears all log entries from the database.
@@ -227,7 +227,7 @@ class LOGGER_API Logger
         * @param line The line number where the log message was created.
         * @param threadId The ID of the thread that created the log message.
         */
-        void logAdd(Level level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId);
+        void logAdd(const Level level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId);
 
         /**
          * @brief Processes a single log task.

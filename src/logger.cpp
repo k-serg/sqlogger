@@ -25,7 +25,7 @@
  * @param numThreads The number of threads in the ThreadPool.
  * @param syncMode Whether to use synchronous mode.
  */
-Logger::Logger(std::unique_ptr<IDatabase> database, bool syncMode, size_t numThreads)
+Logger::Logger(std::unique_ptr<IDatabase> database, const bool syncMode, const size_t numThreads)
     : database(std::move(database)),
       writer( * this->database),
       reader( * this->database),
@@ -72,7 +72,7 @@ void Logger::shutdown()
 * @param level The severity level of the log message.
 * @param message The log message.
 */
-void Logger::log(Level level, const std::string& message)
+void Logger::log(const Level level, const std::string& message)
 {
     logAdd(level, message, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()));
 }
@@ -86,7 +86,7 @@ void Logger::log(Level level, const std::string& message)
  * @param line The line number where the log message was created.
  * @param threadId The ID of the thread that created the log message.
  */
-void Logger::logAdd(Level level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId)
+void Logger::logAdd(const Level level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId)
 {
     if(level < minLevel) return;
 

@@ -20,9 +20,9 @@
 #ifndef LOG_READER_H
 #define LOG_READER_H
 
+#include <vector>
 #include "log_entry.h"
 #include "database_interface.h"
-#include <vector>
 
 /**
  * @class LogReader

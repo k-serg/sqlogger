@@ -20,11 +20,11 @@
 #ifndef SQLITE_DATABASE_H
 #define SQLITE_DATABASE_H
 
-#include "database_interface.h"
 #include <sqlite3.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "database_interface.h"
 
 #define USE_WAL_MODE 1
 

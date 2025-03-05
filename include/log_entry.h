@@ -43,9 +43,7 @@
 #define ENTRY_DELIMITER ","
 #define TIMESTAMP_FMT "%Y-%m-%d %H:%M:%S"
 
-//using namespace std::string_view_literals; // Enables sv suffix only
-
-//const std::array<std::string_view, 6> ALLOWED_FILTER_OP = { "="sv, ">"sv, "<"sv, ">="sv, "<="sv, "!="sv }; /**< List of allowed operators. */
+constexpr char* ALLOWED_FILTER_OP[] = { "=", ">", "<", ">=", "<=", "!=" }; /**< List of allowed operators for Filter structure. */
 
 /**
  * @enum Level
@@ -164,7 +162,11 @@ struct Filter
          */
         bool isAllowedOp() const
         {
-            return (std::find(ALLOWED_FILTER_OP.begin(), ALLOWED_FILTER_OP.end(), op) != ALLOWED_FILTER_OP.end());
+            for (auto const& alowedOp : ALLOWED_FILTER_OP)
+            {
+                if (alowedOp == op) return true;
+            }
+            return false;
         };
 
         /**
@@ -204,8 +206,6 @@ struct Filter
             }
         };
 
-    private:
-        const std::vector <char*> ALLOWED_FILTER_OP = { "=", ">", "<", ">=", "<=", "!=" }; /**< List of allowed operators. */
 };
 
 /**
