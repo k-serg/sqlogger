@@ -50,7 +50,7 @@ set(HEADERS
     "./include/log_entry.h"
     "./include/thread_pool.h"
     "./include/log_export.h"
-)
+    "./include/fs_helper.h")
 
 set(SOURCES
     "./src/logger.cpp"

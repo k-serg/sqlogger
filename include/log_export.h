@@ -24,6 +24,7 @@
 #include <string>
 #include <stdexcept>
 #include "log_entry.h"
+#include "fs_helper.h"
 
 namespace LogExport
 {

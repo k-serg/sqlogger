@@ -658,6 +658,7 @@ int main()
 
 #if TEST_ON_REAL_DB == 1
     std::cout << "Test on real database" << std::endl;
+    std::cout << TEST_DATABASE << std::endl;
 #else
     std::cout << "Test on mock database" << std::endl;
 #endif

@@ -17,8 +17,9 @@
  * Copyright (C) 2025 Sergey K. sergey[no_spam]@greenblit.com
  */
 
-#include "sqlite_database.h"
 #include <iostream>
+#include "sqlite_database.h"
+#include "fs_helper.h"
 
 /**
  * @brief Constructor for SQLiteDatabase
@@ -26,6 +27,9 @@
  */
 SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath)
 {
+    if (!FSHelper::CreateDir(dbPath))
+        throw std::runtime_error("Failed to create directory: " + std::filesystem::path(dbPath).string());
+
     if(sqlite3_open(dbPath.c_str(), & db) != SQLITE_OK)
     {
         throw std::runtime_error("Failed to open database");
