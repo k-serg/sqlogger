@@ -47,7 +47,7 @@ class MockDatabase : public IDatabase
             executedQueries.push_back(query);
 
             // Handle log clearing query
-            if(query.find("DELETE FROM logs") != std::string::npos)
+            if(query.find("DELETE FROM " + std::string(LOG_TABLE_NAME)) != std::string::npos)
             {
                 mockData.clear();
             }
@@ -134,14 +134,14 @@ class MockDatabase : public IDatabase
 
             // Emulate data insertion
             std::map<std::string, std::string> entry;
-            entry["id"] = std::to_string(mockData.size() + 1); // Unique ID
-            entry["timestamp"] = params[0];
-            entry["level"] = params[1];
-            entry["message"] = params[2];
-            entry["function"] = params[3];
-            entry["file"] = params[4];
-            entry["line"] = params[5];
-            entry["thread_id"] = params[6];
+            entry[FIELD_ID] = std::to_string(mockData.size() + 1); // Unique ID
+            entry[FIELD_TIMESTAMP] = params[0];
+            entry[FIELD_LEVEL] = params[1];
+            entry[FIELD_MESSAGE] = params[2];
+            entry[FIELD_FUNCTION] = params[3];
+            entry[FIELD_FILE] = params[4];
+            entry[FIELD_LINE] = params[5];
+            entry[FIELD_THREAD_ID] = params[6];
             mockData.push_back(entry);
 
             return true; // Simulate successful execution
@@ -199,30 +199,47 @@ class MockDatabase : public IDatabase
          * @param filterStr The filter string to parse.
          * @param filters The vector of filters to populate.
          */
-        void parseFilter(const std::string& filterStr, std::vector<Filter> & filters)
+        void parseFilter(const std::string& filterStr, std::vector<Filter>& filters)
         {
             size_t spacePos = filterStr.find(' ');
-            if(spacePos != std::string::npos)
+            if (spacePos != std::string::npos)
             {
                 std::string field = filterStr.substr(0, spacePos);
                 std::string remaining = filterStr.substr(spacePos + 1);
 
                 spacePos = remaining.find(' ');
-                if(spacePos != std::string::npos)
+                if (spacePos != std::string::npos)
                 {
                     std::string op = remaining.substr(0, spacePos);
                     std::string value = remaining.substr(spacePos + 1);
 
-                    // Remove quotes if present
-                    if(value.front() == '\'' && value.back() == '\'')
+                    if (value.front() == '\'')
                     {
-                        value = value.substr(1, value.size() - 2);
+                        size_t quotePos = value.find('\'', 1);
+                        if (quotePos != std::string::npos)
+                        {
+                            value = value.substr(1, quotePos - 1);
+                        }
+                        else
+                        {
+                            value = value.substr(1);
+                        }
+                    }
+                    else
+                    {
+                        // Если значение не в кавычках, берем до следующего пробела
+                        size_t nextSpace = value.find(' ');
+                        if (nextSpace != std::string::npos)
+                        {
+                            value = value.substr(0, nextSpace);
+                        }
                     }
 
                     Filter flt;
                     flt.field = field;
                     flt.op = op;
                     flt.value = value;
+                    flt.type = flt.fieldToType();
                     filters.emplace_back(flt);
                 }
             }
