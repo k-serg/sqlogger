@@ -43,11 +43,14 @@
 
 1. Clone the repository:
 
- 
    ```bash
    git clone https://github.com/k-serg/sqlogger.git
    cd sqlogger
    ``` 
+    Update submodules:
+    ```bash
+    git submodule update --init --recursive --remote
+    ``` 
     Create a build directory:  
     ```bash
     mkdir build
