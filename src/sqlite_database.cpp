@@ -30,7 +30,9 @@ SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath)
     if (!FSHelper::CreateDir(dbPath))
         throw std::runtime_error("Failed to create directory: " + std::filesystem::path(dbPath).string());
 
-    if(sqlite3_open(dbPath.c_str(), & db) != SQLITE_OK)
+    const std::string utf8dbPath = std::filesystem::path(dbPath).u8string();
+
+    if(sqlite3_open(utf8dbPath.c_str(), &db) != SQLITE_OK)
     {
         throw std::runtime_error("Failed to open database");
     }
