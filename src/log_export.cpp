@@ -37,6 +37,8 @@ void LogExport::exportToTXT(const std::string& filePath, const LogEntryList& ent
     {
         outFile << entry.print(delimiter, name) << std::endl;
     }
+
+    outFile.close();
 }
 
 /**
@@ -71,6 +73,8 @@ void LogExport::exportToCSV(const std::string& filePath, const LogEntryList& ent
                 << entry.line << delimiter
                 << entry.threadId << std::endl;
     }
+
+    outFile.close();
 }
 
 /**
@@ -101,6 +105,8 @@ void LogExport::exportToXML(const std::string& filePath, const LogEntryList& ent
         outFile << "  </LogEntry>" << std::endl;
     }
     outFile << "</LogEntries>" << std::endl;
+
+    outFile.close();
 }
 
 /**
@@ -131,6 +137,8 @@ void LogExport::exportToJSON(const std::string& filePath, const LogEntryList& en
                 << "  }" << (i < entryList.size() - 1 ? "," : "") << std::endl;
     }
     outFile << "]" << std::endl;
+
+    outFile.close();
 }
 
 /**
@@ -158,6 +166,8 @@ void LogExport::exportToYAML(const std::string& filePath, const LogEntryList& en
         outFile << "  Line: " << entry.line << std::endl;
         outFile << "  ThreadID: " << entry.threadId << std::endl;
     }
+
+    outFile.close();
 }
 
 /**
