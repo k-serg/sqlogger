@@ -134,6 +134,33 @@ void LogExport::exportToJSON(const std::string& filePath, const LogEntryList& en
 }
 
 /**
+ * @brief Exports log entries to a YAML file.
+ * @param filePath The path to the output file.
+ * @param entryList The list of log entries to export.
+ */
+void LogExport::exportToYAML(const std::string& filePath, const LogEntryList& entryList)
+{
+    std::ofstream outFile(filePath);
+    if (!outFile.is_open())
+    {
+        throw std::runtime_error("Failed to open file: " + filePath);
+    }
+
+    for (const auto& entry : entryList)
+    {
+        outFile << "-";
+        outFile << " ID: " << entry.id<< std::endl;
+        outFile << "  Timestamp: " << entry.timestamp<< std::endl;
+        outFile << "  Level: " << entry.level << std::endl;
+        outFile << "  Message: " << entry.message << std::endl;
+        outFile << "  Function: " << entry.function << std::endl;
+        outFile << "  File: " << entry.file << std::endl;
+        outFile << "  Line: " << entry.line << std::endl;
+        outFile << "  ThreadID: " << entry.threadId << std::endl;
+    }
+}
+
+/**
  * @brief Escapes special characters in a JSON string.
  * @param str The string to escape.
  * @return The escaped string.
@@ -203,6 +230,9 @@ void LogExport::exportTo(const std::string& filePath, const Format& format, cons
             break;
         case Format::JSON:
             exportToJSON(filePath, entryList);
+            break;
+        case Format::YAML:
+            exportToYAML(filePath, entryList);
             break;
         default:
             throw std::runtime_error("Unknown export format");

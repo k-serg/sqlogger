@@ -33,7 +33,8 @@ namespace LogExport
         TXT,
         CSV,
         XML,
-        JSON
+        JSON,
+        YAML
     };
 
     /**
@@ -76,6 +77,13 @@ namespace LogExport
      * @param entryList The list of log entries to export.
      */
     void exportToJSON(const std::string& filePath, const LogEntryList& entryList);
+
+    /**
+    * @brief Exports log entries to a YAML file.
+    * @param filePath The path to the output file.
+    * @param entryList The list of log entries to export.
+    */
+    void exportToYAML(const std::string& filePath, const LogEntryList& entryList);
 
     /**
      * @brief Escapes special characters in a JSON string.

@@ -471,6 +471,7 @@ void testFileExport()
     Logger::exportTo(path.string() + ".csv", LogExport::Format::CSV, allLogs);
     Logger::exportTo(path.string() + ".xml", LogExport::Format::XML, allLogs);
     Logger::exportTo(path.string() + ".json", LogExport::Format::JSON, allLogs);
+    Logger::exportTo(path.string() + ".jaml", LogExport::Format::YAML, allLogs);
 
     // Unknown Format
     //Logger::exportTo(path.string() + ".bad", static_cast<LogExport::Format>(10), allLogs, delimiter, false);
