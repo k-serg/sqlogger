@@ -471,7 +471,7 @@ void testFileExport()
     Logger::exportTo(path.string() + ".csv", LogExport::Format::CSV, allLogs);
     Logger::exportTo(path.string() + ".xml", LogExport::Format::XML, allLogs);
     Logger::exportTo(path.string() + ".json", LogExport::Format::JSON, allLogs);
-    Logger::exportTo(path.string() + ".jaml", LogExport::Format::YAML, allLogs);
+    Logger::exportTo(path.string() + ".yaml", LogExport::Format::YAML, allLogs);
 
     // Unknown Format
     //Logger::exportTo(path.string() + ".bad", static_cast<LogExport::Format>(10), allLogs, delimiter, false);
@@ -595,6 +595,7 @@ void removeTestFiles()
     exportPaths.emplace_back(exportBasePath.string() + ".csv");
     exportPaths.emplace_back(exportBasePath.string() + ".xml");
     exportPaths.emplace_back(exportBasePath.string() + ".json");
+    exportPaths.emplace_back(exportBasePath.string() + ".yaml");
 
     for(const auto & exportPath : exportPaths)
     {
