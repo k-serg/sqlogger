@@ -50,7 +50,8 @@ set(HEADERS
     "./include/log_entry.h"
     "./include/thread_pool.h"
     "./include/log_export.h"
-    "./include/fs_helper.h")
+    "./include/fs_helper.h"
+)
 
 set(SOURCES
     "./src/logger.cpp"
@@ -59,6 +60,7 @@ set(SOURCES
     "./src/log_reader.cpp"
     "./src/thread_pool.cpp"
     "./src/log_export.cpp"
+    "./src/fs_helper.cpp"
 )
 
 # Create the library

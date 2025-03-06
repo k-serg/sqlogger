@@ -1,3 +1,22 @@
+/*
+ * This file is part of SQLogger.
+ *
+ * SQLogger is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SQLogger is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SQLogger. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Copyright (C) 2025 Sergey K. sergey[no_spam]@greenblit.com
+ */
+
 #ifndef FS_HELPER_H
 #define FS_HELPER_H
 
@@ -10,30 +29,15 @@
 */
 namespace FSHelper
 {
-	/**
-	 * @brief 
-	 * @param path Path to the file.
-	 * If path contains filename it will be removed.
-	 * @return bool True, if path created or already exists. 
-	 * False otherwise.
-	*/
-	static bool CreateDir(const std::string& path)
-	{
-		std::filesystem::path dir(path);
-		dir = std::filesystem::absolute(dir);
-		dir = dir.remove_filename();
-		if (std::filesystem::exists(dir)) return true;
-		try
-		{
-			std::filesystem::create_directories(dir);
-		}
-		catch (const std::exception& e)
-		{
-			std::cerr << "Failed to create directory: " << dir.string() << " " << e.what() << std::endl;
-			return false;
-		}
-		return true;
-	};
+    /**
+     * @brief Create directories from path.
+     * @param path Path to the file/directory.
+     * @param errMsg Error message.
+     * If path contains filename it will be removed.
+     * @return bool True, if path created or already exists.
+     * False otherwise.
+    */
+    bool CreateDir(const std::string& path, std::string& errMsg = std::string());
 };
 
 #endif // !FS_HELPER_H

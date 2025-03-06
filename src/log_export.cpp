@@ -184,8 +184,11 @@ std::string LogExport::escapeJsonString(const std::string& str)
 */
 void LogExport::exportTo(const std::string& filePath, const Format& format, const LogEntryList& entryList, const std::string& delimiter, bool name)
 {
-    if (!FSHelper::CreateDir(filePath))
-        throw std::runtime_error("Failed to create directory: " + std::filesystem::path(filePath).string());
+    std::string errMsg;
+    if(!FSHelper::CreateDir(filePath, errMsg))
+    {
+        throw std::runtime_error("Failed to create directory: " + errMsg);
+    }
 
     switch(format)
     {

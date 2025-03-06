@@ -137,74 +137,74 @@ namespace LogHelper
  */
 struct Filter
 {
-        /**
-        * @enum Type
-        * @brief Type of the filter.
-        */
-        enum class Type
-        {
-            Unknown = -1,
-            Level,
-            File,
-            Function,
-            ThreadId,
-            TimestampRange
-        };
+    /**
+    * @enum Type
+    * @brief Type of the filter.
+    */
+    enum class Type
+    {
+        Unknown = -1,
+        Level,
+        File,
+        Function,
+        ThreadId,
+        TimestampRange
+    };
 
-        Type type; /**< The type to filter on. */
-        std::string field; /**< The field to filter on. */
-        std::string op;    /**< The operator to use for filtering. */
-        std::string value; /**< The value to compare against. */
+    Type type; /**< The type to filter on. */
+    std::string field; /**< The field to filter on. */
+    std::string op;    /**< The operator to use for filtering. */
+    std::string value; /**< The value to compare against. */
 
-        /**
-         * @brief Checks if the operator is allowed.
-         * @return True if the operator is allowed, false otherwise.
-         */
-        bool isAllowedOp() const
+    /**
+     * @brief Checks if the operator is allowed.
+     * @return True if the operator is allowed, false otherwise.
+     */
+    bool isAllowedOp() const
+    {
+        for(auto const & alowedOp : ALLOWED_FILTER_OP)
         {
-            for (auto const& alowedOp : ALLOWED_FILTER_OP)
-            {
-                if (alowedOp == op) return true;
-            }
-            return false;
-        };
+            if(alowedOp == op) return true;
+        }
+        return false;
+    };
 
-        /**
-        * @brief Converts the field name (string) to the corresponding Filter::Type enum value.
-        * @return Filter::Type The corresponding enum value for the field.
-        */
-        Type fieldToType() const
-        {
-            if(field == FIELD_LEVEL) return Type::Level;
-            if(field == FIELD_FILE) return Type::File;
-            if(field == FIELD_FUNCTION) return Type::Function;
-            if(field == FIELD_THREAD_ID) return Type::ThreadId;
-            if(field == FIELD_TIMESTAMP) return Type::TimestampRange;
-            return Type::Unknown;
-        };
+    /**
+    * @brief Converts the field name (string) to the corresponding Filter::Type enum value.
+    * @return Filter::Type The corresponding enum value for the field.
+    */
+    Type fieldToType() const
+    {
+        if(field == FIELD_LEVEL) return Type::Level;
+        if(field == FIELD_FILE) return Type::File;
+        if(field == FIELD_FUNCTION) return Type::Function;
+        if(field == FIELD_THREAD_ID) return Type::ThreadId;
+        if(field == FIELD_TIMESTAMP) return Type::TimestampRange;
+        return Type::Unknown;
+    };
 
-        /**
-        * @brief Converts the Filter::Type enum value to the corresponding field name (string).
-        * @return std::string The corresponding field name for the Filter::Type enum value.
-        */
-        std::string typeToField()
+    /**
+    * @brief Converts the Filter::Type enum value to the corresponding field name (string).
+    * @return std::string The corresponding field name for the Filter::Type enum value.
+    */
+    std::string typeToField()
+    {
+        switch(type)
         {
-            switch(type)
-            {
-                case Type::Level:
-                    return FIELD_LEVEL;
-                case Type::File:
-                    return FIELD_FILE;
-                case Type::Function:
-                    return FIELD_FUNCTION;
-                case Type::ThreadId:
-                    return FIELD_THREAD_ID;
-                case Type::TimestampRange:
-                    return FIELD_TIMESTAMP;
-                default:
-                    return "Unknown";
-            }
-        };
+            case Type::Level:
+                return FIELD_LEVEL;
+            case Type::File:
+                return FIELD_FILE;
+            case Type::Function:
+                return FIELD_FUNCTION;
+            case Type::ThreadId:
+                return FIELD_THREAD_ID;
+            case Type::TimestampRange:
+                return FIELD_TIMESTAMP;
+            default:
+                return "Unknown";
+        }
+    };
 
 };
 

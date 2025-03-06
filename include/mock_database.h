@@ -199,24 +199,24 @@ class MockDatabase : public IDatabase
          * @param filterStr The filter string to parse.
          * @param filters The vector of filters to populate.
          */
-        void parseFilter(const std::string& filterStr, std::vector<Filter>& filters)
+        void parseFilter(const std::string& filterStr, std::vector<Filter> & filters)
         {
             size_t spacePos = filterStr.find(' ');
-            if (spacePos != std::string::npos)
+            if(spacePos != std::string::npos)
             {
                 std::string field = filterStr.substr(0, spacePos);
                 std::string remaining = filterStr.substr(spacePos + 1);
 
                 spacePos = remaining.find(' ');
-                if (spacePos != std::string::npos)
+                if(spacePos != std::string::npos)
                 {
                     std::string op = remaining.substr(0, spacePos);
                     std::string value = remaining.substr(spacePos + 1);
 
-                    if (value.front() == '\'')
+                    if(value.front() == '\'')
                     {
                         size_t quotePos = value.find('\'', 1);
-                        if (quotePos != std::string::npos)
+                        if(quotePos != std::string::npos)
                         {
                             value = value.substr(1, quotePos - 1);
                         }
@@ -229,7 +229,7 @@ class MockDatabase : public IDatabase
                     {
                         // Если значение не в кавычках, берем до следующего пробела
                         size_t nextSpace = value.find(' ');
-                        if (nextSpace != std::string::npos)
+                        if(nextSpace != std::string::npos)
                         {
                             value = value.substr(0, nextSpace);
                         }
