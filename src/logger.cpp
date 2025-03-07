@@ -25,7 +25,7 @@
  * @param numThreads The number of threads in the ThreadPool.
  * @param syncMode Whether to use synchronous mode.
  */
-Logger::Logger(std::unique_ptr<IDatabase> database, const bool syncMode, const size_t numThreads)
+Logger::Logger(std::unique_ptr<IDatabase> database, const bool syncMode, const size_t numThreads, const bool onlyFileName)
     : database(std::move(database)),
       writer( * this->database),
       reader( * this->database),
@@ -35,7 +35,8 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const bool syncMode, const s
       totalProcessingTime(0),
       maxProcessingTime(0),
       minLevel(Level::Info),
-      syncMode(syncMode)
+      syncMode(syncMode),
+      onlyFileName(onlyFileName)
 {
     std::scoped_lock lock(dbMutex);
     writer.createTable();
@@ -90,16 +91,22 @@ void Logger::logAdd(const Level level, const std::string& message, const std::st
 {
     if(level < minLevel) return;
 
+    std::string fileName(file);
+    if (onlyFileName)
+    {
+        fileName = std::filesystem::path(fileName).filename().string();
+    }
+
     if(syncMode)
     {
-        LogTask task{ level, message, function, file, line, threadId, std::chrono::system_clock::now() };
+        LogTask task{ level, message, function, fileName, line, threadId, std::chrono::system_clock::now() };
         processTask(task);
     }
     else
     {
-        threadPool.enqueue([this, level, message, function, file, line, threadId]
+        threadPool.enqueue([this, level, message, function, fileName, line, threadId]
         {
-            LogTask task{ level, message, function, file, line, threadId, std::chrono::system_clock::now() };
+            LogTask task{ level, message, function, fileName, line, threadId, std::chrono::system_clock::now() };
             processTask(task);
         });
     }

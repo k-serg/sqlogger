@@ -33,6 +33,7 @@
 #define PERFORMANCE_TEST_ENTRIES 100
 #define PRINT_LOGS 0
 #define WAIT_UNTIL_EMPTY_MSEC 1000
+#define ONLY_FILE_NAME 0
 
 using namespace LogHelper;
 
@@ -46,7 +47,7 @@ using namespace LogHelper;
 // Minimum log level
 constexpr Level LOG_LEVEL = Level::Trace;
 
-Logger logger(std::move(database), USE_SYNC_MODE, TEST_NUM_THREADS);
+Logger logger(std::move(database), USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME);
 
 void printLogs(const LogEntryList logs)
 {
@@ -188,7 +189,12 @@ void testFilterByFile()
     }
 
     // Retrieve logs for the current file
-    auto fileLogs = logger.getLogsByFile(__FILE__);
+#if ONLY_FILE_NAME == 1
+    const std::string file = std::filesystem::path(__FILE__).filename().string();
+#else
+    const std::string file = __FILE__;
+#endif
+    auto fileLogs = logger.getLogsByFile(file);
 
     printLogs(fileLogs);
 
@@ -388,7 +394,11 @@ void testMultiFilters()
     Filter fileFilter;
     fileFilter.type = Filter::Type::File;
     fileFilter.field = fileFilter.typeToField();
+#if ONLY_FILE_NAME == 1
+    fileFilter.value = std::filesystem::path(__FILE__).filename().string();
+#else
     fileFilter.value = __FILE__;
+#endif
     fileFilter.op = "=";
     filters.push_back(fileFilter);
 

@@ -98,7 +98,7 @@ class LOGGER_API Logger
          * @param numThreads The number of threads in the ThreadPool.
          * @param syncMode Whether to use synchronous mode.
          */
-        Logger(std::unique_ptr<IDatabase> database, const bool syncMode = true, const size_t numThreads = NUM_THREADS);
+        Logger(std::unique_ptr<IDatabase> database, const bool syncMode = true, const size_t numThreads = NUM_THREADS, const bool onlyFileName = false);
 
         /**
          * @brief Destructor for Logger. Stops all threads and releases resources.
@@ -263,6 +263,7 @@ class LOGGER_API Logger
 
         Level minLevel; /**< Minimum log level for messages to be logged. */
         bool syncMode; /**< Whether the logger is in synchronous mode. */
+        bool onlyFileName;
 };
 
 /**
