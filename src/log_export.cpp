@@ -54,14 +54,14 @@ void LogExport::exportToCSV(const std::string& filePath, const LogEntryList& ent
     {
         throw std::runtime_error("Failed to open file: " + filePath);
     }
-    outFile << "ID" << delimiter
-            << "Timestamp" << delimiter
-            << "Level" << delimiter
-            << "Message" << delimiter
-            << "Function" << delimiter
-            << "File" << delimiter
-            << "Line" << delimiter
-            << "Thread ID" << std::endl;
+    outFile << EXP_FIELD_ID << delimiter
+            << EXP_FIELD_TIMESTAMP << delimiter
+            << EXP_FIELD_LEVEL << delimiter
+            << EXP_FIELD_MESSAGE << delimiter
+            << EXP_FIELD_FUNCTION << delimiter
+            << EXP_FIELD_FILE << delimiter
+            << EXP_FIELD_LINE << delimiter
+            << EXP_FIELD_THREAD_ID << std::endl;
     for(const auto & entry : entryList)
     {
         outFile << entry.id << delimiter
@@ -94,14 +94,14 @@ void LogExport::exportToXML(const std::string& filePath, const LogEntryList& ent
     for(const auto & entry : entryList)
     {
         outFile << "  <LogEntry>" << std::endl;
-        outFile << "    <ID>" << entry.id << "</ID>" << std::endl;
-        outFile << "    <Timestamp>" << entry.timestamp << "</Timestamp>" << std::endl;
-        outFile << "    <Level>" << entry.level << "</Level>" << std::endl;
-        outFile << "    <Message>" << entry.message << "</Message>" << std::endl;
-        outFile << "    <Function>" << entry.function << "</Function>" << std::endl;
-        outFile << "    <File>" << entry.file << "</File>" << std::endl;
-        outFile << "    <Line>" << entry.line << "</Line>" << std::endl;
-        outFile << "    <ThreadID>" << entry.threadId << "</ThreadID>" << std::endl;
+        outFile << "    <" << EXP_FIELD_ID << ">" << entry.id << "</" << EXP_FIELD_ID << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_TIMESTAMP << ">" << entry.timestamp << "</" << EXP_FIELD_TIMESTAMP << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_LEVEL << ">" << entry.level << "</" << EXP_FIELD_LEVEL << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_MESSAGE << ">" << entry.message << "</" << EXP_FIELD_MESSAGE << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_FUNCTION << ">" << entry.function << "</" << EXP_FIELD_FUNCTION << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_FILE << ">" << entry.file << "</" << EXP_FIELD_FILE << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_LINE << ">" << entry.line << "</" << EXP_FIELD_LINE << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_THREAD_ID << ">" << entry.threadId << "</" << EXP_FIELD_THREAD_ID << ">" << std::endl;
         outFile << "  </LogEntry>" << std::endl;
     }
     outFile << "</LogEntries>" << std::endl;
@@ -126,14 +126,14 @@ void LogExport::exportToJSON(const std::string& filePath, const LogEntryList& en
     {
         const auto& entry = entryList[i];
         outFile << "  {" << std::endl
-                << "    \"ID\": " << entry.id << "," << std::endl
-                << "    \"Timestamp\": \"" << escapeJsonString(entry.timestamp) << "\"," << std::endl
-                << "    \"Level\": \"" << escapeJsonString(entry.level) << "\"," << std::endl
-                << "    \"Message\": \"" << escapeJsonString(entry.message) << "\"," << std::endl
-                << "    \"Function\": \"" << escapeJsonString(entry.function) << "\"," << std::endl
-                << "    \"File\": \"" << escapeJsonString(entry.file) << "\"," << std::endl
-                << "    \"Line\": " << entry.line << "," << std::endl
-                << "    \"ThreadID\": \"" << escapeJsonString(entry.threadId) << "\"" << std::endl
+                << "    \"" << EXP_FIELD_ID << "\": " << entry.id << "," << std::endl
+                << "    \"" << EXP_FIELD_TIMESTAMP << "\": \"" << escapeJsonString(entry.timestamp) << "\"," << std::endl
+                << "    \"" << EXP_FIELD_LEVEL << "\": \"" << escapeJsonString(entry.level) << "\"," << std::endl
+                << "    \"" << EXP_FIELD_MESSAGE << "\": \"" << escapeJsonString(entry.message) << "\"," << std::endl
+                << "    \"" << EXP_FIELD_FUNCTION << "\": \"" << escapeJsonString(entry.function) << "\"," << std::endl
+                << "    \"" << EXP_FIELD_FILE << "\": \"" << escapeJsonString(entry.file) << "\"," << std::endl
+                << "    \"" << EXP_FIELD_LINE << "\": " << entry.line << "," << std::endl
+                << "    \"" << EXP_FIELD_THREAD_ID << "\": \"" << escapeJsonString(entry.threadId) << "\"" << std::endl
                 << "  }" << (i < entryList.size() - 1 ? "," : "") << std::endl;
     }
     outFile << "]" << std::endl;
@@ -149,22 +149,22 @@ void LogExport::exportToJSON(const std::string& filePath, const LogEntryList& en
 void LogExport::exportToYAML(const std::string& filePath, const LogEntryList& entryList)
 {
     std::ofstream outFile(filePath);
-    if (!outFile.is_open())
+    if(!outFile.is_open())
     {
         throw std::runtime_error("Failed to open file: " + filePath);
     }
 
-    for (const auto& entry : entryList)
+    for(const auto & entry : entryList)
     {
         outFile << "-";
-        outFile << " ID: " << entry.id<< std::endl;
-        outFile << "  Timestamp: " << entry.timestamp<< std::endl;
-        outFile << "  Level: " << entry.level << std::endl;
-        outFile << "  Message: " << entry.message << std::endl;
-        outFile << "  Function: " << entry.function << std::endl;
-        outFile << "  File: " << entry.file << std::endl;
-        outFile << "  Line: " << entry.line << std::endl;
-        outFile << "  ThreadID: " << entry.threadId << std::endl;
+        outFile << " " << EXP_FIELD_ID << ": " << entry.id << std::endl;
+        outFile << "  " << EXP_FIELD_TIMESTAMP << ": " << "\"" << escapeJsonString(entry.timestamp) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_LEVEL << ": " << "\"" << escapeJsonString(entry.level) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_MESSAGE << ": " << "\"" << escapeJsonString(entry.message) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_FUNCTION << ": " << "\"" << escapeJsonString(entry.function) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_FILE << ": " << "\"" << escapeJsonString(entry.file) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_LINE << ": " << entry.line << std::endl;
+        outFile << "  " << EXP_FIELD_THREAD_ID << ": " << "\"" << escapeJsonString(entry.threadId) << "\"" << std::endl;
     }
 
     outFile.close();

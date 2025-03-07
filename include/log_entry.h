@@ -40,6 +40,16 @@
 #define FIELD_LINE "line"
 #define FIELD_THREAD_ID "thread_id"
 
+// Define constants for table field file export names
+#define EXP_FIELD_ID "ID"
+#define EXP_FIELD_TIMESTAMP "Timestamp"
+#define EXP_FIELD_LEVEL "Level"
+#define EXP_FIELD_MESSAGE "Message"
+#define EXP_FIELD_FUNCTION "Function"
+#define EXP_FIELD_FILE "File"
+#define EXP_FIELD_LINE "Line"
+#define EXP_FIELD_THREAD_ID "ThreadID"
+
 #define ENTRY_DELIMITER ","
 #define TIMESTAMP_FMT "%Y-%m-%d %H:%M:%S"
 
@@ -233,12 +243,12 @@ struct LogEntry
     {
         std::stringstream sout;
         sout << (name ? "Timestamp: " : "") << timestamp
-             << delimiter << (name ? " Level: " : "") << level
-             << delimiter << (name ? " Message: " : "") << "\"" << message << "\""
-             << delimiter << (name ? " Function: " : "") << function
-             << delimiter << (name ? " File: " : "") << file
-             << delimiter << (name ? " Line: " : "") << line
-             << delimiter << (name ? " Thread ID: " : "") << threadId;
+             << delimiter << (name ? " " + std::string(EXP_FIELD_LEVEL) + ": " : "") << level
+             << delimiter << (name ? " " + std::string(EXP_FIELD_MESSAGE) + ": " : "") << "\"" << message << "\""
+             << delimiter << (name ? " " + std::string(EXP_FIELD_FUNCTION) + ": " : "") << function
+             << delimiter << (name ? " " + std::string(EXP_FIELD_FILE) + ": " : "") << file
+             << delimiter << (name ? " " + std::string(EXP_FIELD_LINE) + ": " : "") << line
+             << delimiter << (name ? " " + std::string(EXP_FIELD_THREAD_ID) + ": " : "") << threadId;
         return sout.str();
     }
 
