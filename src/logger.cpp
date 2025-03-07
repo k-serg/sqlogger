@@ -22,8 +22,9 @@
 /**
  * @brief Constructs a Logger object.
  * @param database The database interface to use for logging.
- * @param numThreads The number of threads in the ThreadPool.
  * @param syncMode Whether to use synchronous mode.
+ * @param numThreads The number of threads in the ThreadPool.
+ * @param onlyFileName Log only filename, without full path.
  */
 Logger::Logger(std::unique_ptr<IDatabase> database, const bool syncMode, const size_t numThreads, const bool onlyFileName)
     : database(std::move(database)),

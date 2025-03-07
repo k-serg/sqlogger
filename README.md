@@ -96,7 +96,7 @@ The Logger class is the main class for logging messages to an SQLite database. I
 Constructor
 
    ```cpp
-   Logger(std::unique_ptr<IDatabase> database, bool syncMode = true, size_t numThreads = NUM_THREADS);
+   Logger(std::unique_ptr<IDatabase> database, bool syncMode = true, size_t numThreads = NUM_THREADS, const bool onlyFileName = false);
    ```
 
 Parameters:
@@ -106,6 +106,8 @@ Parameters:
     syncMode: Whether to use synchronous mode (default is true).
 
     numThreads: The number of threads in the thread pool (default is NUM_THREADS).
+
+    onlyFileName: Log only filename, without full path.
 
 **Method: log**
 

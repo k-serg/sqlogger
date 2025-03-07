@@ -95,8 +95,9 @@ class LOGGER_API Logger
         /**
          * @brief Constructs a Logger object.
          * @param database The database interface to use for logging.
-         * @param numThreads The number of threads in the ThreadPool.
-         * @param syncMode Whether to use synchronous mode.
+         * @param syncMode Whether to use synchronous mode.        
+         * @param numThreads The number of threads in the ThreadPool.       
+         * @param onlyFileName Log only filename, without full path.
          */
         Logger(std::unique_ptr<IDatabase> database, const bool syncMode = true, const size_t numThreads = NUM_THREADS, const bool onlyFileName = false);
 
