@@ -18,3 +18,65 @@
  */
 
 #include "log_config.h"
+#include "ini_parser.h"
+
+namespace LogConfig
+{
+    /**
+    * @brief Loads configuration from an INI file.
+    * @param filename The path to the INI file.
+    * @return A Config object containing the loaded settings.
+    * @throws std::runtime_error If the file cannot be parsed.
+    */
+    Config Config::loadFromINI(const std::string& filename)
+    {
+        auto iniData = INI::parse(filename);
+        Config config;
+
+        if(iniData.count(LOG_INI_SECTION))
+        {
+            const auto& loggerSection = iniData[LOG_INI_SECTION];
+            if(loggerSection.count(LOG_INI_KEY_SYNC_MODE))
+            {
+                config.syncMode = (loggerSection.at(LOG_INI_KEY_SYNC_MODE) == "true");
+            }
+            if(loggerSection.count(LOG_INI_KEY_NUM_THREADS))
+            {
+                config.numThreads = std::stoul(loggerSection.at(LOG_INI_KEY_NUM_THREADS));
+            }
+            if(loggerSection.count(LOG_INI_KEY_ONLY_FILE_NAMES))
+            {
+                config.onlyFileNames = (loggerSection.at(LOG_INI_KEY_ONLY_FILE_NAMES) == "true");
+            }
+        }
+
+        return config;
+    }
+
+    /**
+     * @brief Saves configuration to an INI file.
+     * @param config The Config object to save.
+     * @param filename The path to the INI file.
+     * @throws std::runtime_error If the file cannot be written.
+     */
+    void Config::saveToINI(const Config& config, const std::string& filename)
+    {
+        INI::INIData iniData;
+
+        if(config.syncMode.has_value())
+        {
+            iniData[LOG_INI_SECTION][LOG_INI_KEY_SYNC_MODE] = config.syncMode.value() ? "true" : "false";
+        }
+        if(config.numThreads.has_value())
+        {
+            iniData[LOG_INI_SECTION][LOG_INI_KEY_NUM_THREADS] = std::to_string(config.numThreads.value());
+        }
+        if(config.onlyFileNames.has_value())
+        {
+            iniData[LOG_INI_SECTION][LOG_INI_KEY_ONLY_FILE_NAMES] = config.onlyFileNames.value() ? "true" : "false";
+        }
+
+        INI::write(filename, iniData);
+    }
+};
+

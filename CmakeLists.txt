@@ -4,10 +4,10 @@ set(PROJECT_NAME sqlogger)
 
 project(${PROJECT_NAME})
 
-set(VERSION_MAJOR 1)
-set(VERSION_MINOR 0)
-set(VERSION_BUILD 0)
-set(VERSION_FULL ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_BUILD})
+set(SQLOGGER_VERSION_MAJOR 1)
+set(SQLOGGER_VERSION_MINOR 1)
+set(SQLOGGER_VERSION_BUILD 0)
+set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
 
 configure_file("sqlogger_config.h.in" "sqlogger_config.h" @ONLY)
 
@@ -52,6 +52,7 @@ set(HEADERS
     "./include/log_export.h"
     "./include/fs_helper.h"
     "./include/log_config.h"
+    "./include/ini_parser.h"
  )
 
 set(SOURCES
@@ -63,6 +64,7 @@ set(SOURCES
     "./src/log_export.cpp"
     "./src/fs_helper.cpp"
     "./src/log_config.cpp"
+    "./src/ini_parser.cpp"
 )
 
 # Create the library

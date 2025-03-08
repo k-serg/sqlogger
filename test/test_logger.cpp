@@ -49,10 +49,34 @@ using namespace LogConfig;
 constexpr Level LOG_LEVEL = Level::Trace;
 
 // Config
-Config config{ USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME };
+const Config config{ USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME };
 
 Logger logger(std::move(database), config);
 
+/**
+ * @brief Load config from file.
+ * @param filename File name to load.
+ * @return LogConfig::Config structure.
+*/
+LogConfig::Config loadConfig(const std::string& filename)
+{
+    return LogConfig::Config::loadFromINI(filename);
+}
+
+/**
+ * @brief Saves config into file.
+ * @param filename File name to save.
+ * @param config LogConfig::Config structure.
+*/
+void saveConfig(const Config& config, const std::string& filename)
+{
+    LogConfig::Config::saveToINI(config, filename);
+}
+
+/**
+ * @brief Print logs and it size into stdout
+ * @param logs LogEntryList
+*/
 void printLogs(const LogEntryList logs)
 {
 #if PRINT_LOGS != 1
@@ -364,6 +388,9 @@ void testMultiThread()
     std::cout << "testMultiThreadedLogging passed!" << std::endl;
 }
 
+/**
+ * @brief Test Multi-filters log entries retrieve.
+*/
 void testMultiFilters()
 {
     // Clear the database before starting the test
@@ -625,6 +652,20 @@ void removeTestFiles()
             }
         }
     }
+
+    const auto configFilePath = std::filesystem::absolute(LOG_INI_FILENAME);
+
+    if(std::filesystem::exists(configFilePath))
+    {
+        try
+        {
+            std::filesystem::remove(configFilePath);
+        }
+        catch(const std::exception& e)
+        {
+            std::cout << "Can't remove config file: " << configFilePath << "(" << e.what() << ")" << std::endl;
+        }
+    }
 }
 
 /**
@@ -661,6 +702,20 @@ void testPerformance()
 }
 
 /**
+ * @brief Test config save/load.
+*/
+void testConfigSaveLoad()
+{
+    saveConfig(config, LOG_INI_FILENAME);
+    auto loadedConfig = loadConfig(LOG_INI_FILENAME);
+    assert(loadedConfig.syncMode == config.syncMode);
+    assert(loadedConfig.numThreads == config.numThreads);
+    assert(loadedConfig.onlyFileNames == config.onlyFileNames);
+
+    std::cout << "testConfigSaveLoad passed!" << std::endl;
+}
+
+/**
  * @brief Cleanup function to shut down the logger.
  */
 void cleanup()
@@ -670,7 +725,7 @@ void cleanup()
 
 int main()
 {
-    std::cout << PROJECT_NAME << " v." << VERSION_FULL << std::endl;
+    std::cout << SQLOGGER_PROJECT_NAME << " v." << SQLOGGER_VERSION_FULL << std::endl;
 
 #if TEST_ON_REAL_DB == 1
     std::cout << "Test on real database" << std::endl;
@@ -701,6 +756,7 @@ int main()
         testMultiFilters();
         testFileExport();
         testClearLogs();
+        testConfigSaveLoad();
         testPerformance();
 
         std::cout << "All tests passed successfully!" << std::endl;

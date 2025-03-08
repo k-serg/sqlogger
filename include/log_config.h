@@ -21,20 +21,47 @@
 #define LOG_CONFIG_H
 
 #include <optional>
+#include <string>
+#include "sqlogger_config.h"
 
 // Defaults
-#define LOG_NUM_THREADS 4
-#define LOG_SYNC_MODE 1
-#define LOG_ONLY_FILE_NAMES 0
+#define LOG_NUM_THREADS 4 ///< Default number of threads for asynchronous logging.
+#define LOG_SYNC_MODE 1 ///< Default synchronization mode (true for synchronous logging).
+#define LOG_ONLY_FILE_NAMES 0 ///< Default whether to log only filenames (without full paths).
+
+#define LOG_INI_SECTION "Logger"
+#define LOG_INI_KEY_SYNC_MODE "SyncMode"
+#define LOG_INI_KEY_NUM_THREADS "NumThreads"
+#define LOG_INI_KEY_ONLY_FILE_NAMES "OnlyFileNames"
+constexpr char* LOG_INI_FILENAME = SQLOGGER_PROJECT_NAME ".ini";
 
 namespace LogConfig
 {
+    /**
+     * @brief Configuration settings for the logger.
+     */
     struct Config
     {
-        std::optional<bool> syncMode = LOG_SYNC_MODE;
-        std::optional<size_t> numThreads = LOG_NUM_THREADS;
-        std::optional<bool> onlyFileNames = LOG_ONLY_FILE_NAMES;
+        std::optional<bool> syncMode = LOG_SYNC_MODE; ///< Synchronization mode (true for synchronous logging).
+        std::optional<size_t> numThreads = LOG_NUM_THREADS; ///< Number of threads for asynchronous logging.
+        std::optional<bool> onlyFileNames = LOG_ONLY_FILE_NAMES; ///< Whether to log only filenames (without full paths).
+
+        /**
+        * @brief Loads configuration from an INI file.
+        * @param filename The path to the INI file.
+        * @return A Config object containing the loaded settings.
+        * @throws std::runtime_error If the file cannot be parsed.
+        */
+        static Config loadFromINI(const std::string& filename = LOG_INI_FILENAME);
+
+        /**
+         * @brief Saves configuration to an INI file.
+         * @param config The Config object to save.
+         * @param filename The path to the INI file.
+         * @throws std::runtime_error If the file cannot be written.
+         */
+        static void saveToINI(const Config& config, const std::string& filename = LOG_INI_FILENAME);
     };
-}
+};
 
 #endif // !LOG_CONFIG_H
