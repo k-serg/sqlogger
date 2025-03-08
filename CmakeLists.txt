@@ -51,7 +51,8 @@ set(HEADERS
     "./include/thread_pool.h"
     "./include/log_export.h"
     "./include/fs_helper.h"
-)
+    "./include/log_config.h"
+ )
 
 set(SOURCES
     "./src/logger.cpp"
@@ -61,6 +62,7 @@ set(SOURCES
     "./src/thread_pool.cpp"
     "./src/log_export.cpp"
     "./src/fs_helper.cpp"
+    "./src/log_config.cpp"
 )
 
 # Create the library
@@ -82,7 +84,7 @@ else()
 endif()
 
 # Set properties for symbol export
-if (WIN32)
+if (WIN32 AND BUILD_SHARED_LIBS)
     target_compile_definitions(${PROJECT_NAME} PRIVATE LOGGER_EXPORTS)
 endif()
 

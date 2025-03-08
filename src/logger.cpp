@@ -22,22 +22,20 @@
 /**
  * @brief Constructs a Logger object.
  * @param database The database interface to use for logging.
- * @param syncMode Whether to use synchronous mode.
- * @param numThreads The number of threads in the ThreadPool.
- * @param onlyFileName Log only filename, without full path.
+ * @param config LogConfig::Config struct that will be applied.
  */
-Logger::Logger(std::unique_ptr<IDatabase> database, const bool syncMode, const size_t numThreads, const bool onlyFileName)
+Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config)
     : database(std::move(database)),
       writer( * this->database),
       reader( * this->database),
-      threadPool(numThreads),
+      threadPool(config.numThreads.value_or(LOG_NUM_THREADS)),
       running(true),
       totalTasksProcessed(0),
       totalProcessingTime(0),
       maxProcessingTime(0),
       minLevel(Level::Info),
-      syncMode(syncMode),
-      onlyFileName(onlyFileName)
+      syncMode(config.syncMode.value_or(LOG_SYNC_MODE)),
+      onlyFileNames(config.onlyFileNames.value_or(LOG_ONLY_FILE_NAMES))
 {
     std::scoped_lock lock(dbMutex);
     writer.createTable();
@@ -93,7 +91,7 @@ void Logger::logAdd(const Level level, const std::string& message, const std::st
     if(level < minLevel) return;
 
     std::string fileName(file);
-    if (onlyFileName)
+    if(onlyFileNames)
     {
         fileName = std::filesystem::path(fileName).filename().string();
     }

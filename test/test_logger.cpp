@@ -36,6 +36,7 @@
 #define ONLY_FILE_NAME 0
 
 using namespace LogHelper;
+using namespace LogConfig;
 
 // Use a real database or mock
 #if TEST_ON_REAL_DB == 1
@@ -47,7 +48,10 @@ using namespace LogHelper;
 // Minimum log level
 constexpr Level LOG_LEVEL = Level::Trace;
 
-Logger logger(std::move(database), USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME);
+// Config
+Config config{ USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME };
+
+Logger logger(std::move(database), config);
 
 void printLogs(const LogEntryList logs)
 {
@@ -672,13 +676,14 @@ int main()
     std::cout << "Test on real database" << std::endl;
     std::cout << TEST_DATABASE << std::endl;
 #else
-    std::cout << "Test on mock database" << std::endl;
+    std::cout << "Test on mock data" << std::endl;
 #endif
 
 #if USE_SYNC_MODE == 1
     std::cout << "Sync Mode: ON" << std::endl;
 #else
     std::cout << "Sync Mode: OFF" << std::endl;
+    std::cout << "Number of threads: " << LOG_NUM_THREADS << std::endl;
 #endif
 
     logger.setLogLevel(LOG_LEVEL);

@@ -36,12 +36,15 @@
 #include "log_reader.h"
 #include "log_export.h"
 #include "thread_pool.h"
+#include "log_config.h"
 
 // Macros for symbol export (for Windows)
 #ifdef _WIN32
     #ifdef LOGGER_EXPORTS
+        #pragma message("LOGGER_EXPORTS Defined")
         #define LOGGER_API __declspec(dllexport)
     #else
+        #pragma message("LOGGER_EXPORTS Not Defined")
         #define LOGGER_API __declspec(dllimport)
     #endif
 #else
@@ -51,7 +54,6 @@
 using namespace LogHelper;
 
 // Constants
-#define NUM_THREADS 4
 #define ERR_LOG_FILE "error_log.txt"
 #define ERR_MSG_FAILED_QUERY "Failed to execute query"
 
@@ -95,11 +97,9 @@ class LOGGER_API Logger
         /**
          * @brief Constructs a Logger object.
          * @param database The database interface to use for logging.
-         * @param syncMode Whether to use synchronous mode.        
-         * @param numThreads The number of threads in the ThreadPool.       
-         * @param onlyFileName Log only filename, without full path.
+         * @param config LogConfig::Config struct that will be applied.
          */
-        Logger(std::unique_ptr<IDatabase> database, const bool syncMode = true, const size_t numThreads = NUM_THREADS, const bool onlyFileName = false);
+        Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config = {});
 
         /**
          * @brief Destructor for Logger. Stops all threads and releases resources.
@@ -264,7 +264,7 @@ class LOGGER_API Logger
 
         Level minLevel; /**< Minimum log level for messages to be logged. */
         bool syncMode; /**< Whether the logger is in synchronous mode. */
-        bool onlyFileName;
+        bool onlyFileNames; /**< Log only filenames or full path to the file. */
 };
 
 /**
