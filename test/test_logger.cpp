@@ -46,10 +46,10 @@ using namespace LogConfig;
 #endif // TEST_ON_REAL_DB
 
 // Minimum log level
-constexpr Level LOG_LEVEL = Level::Trace;
+constexpr LogLevel LOG_LEVEL = LogLevel::Trace;
 
 // Config
-const Config config{ USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME };
+const Config config{ USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME, LOG_LEVEL };
 
 Logger logger(std::move(database), config);
 
@@ -141,7 +141,7 @@ void testFilterByLevel()
     // Clear the database before starting the test
     logger.clearLogs();
 
-    const auto level = Level::Info;
+    const auto level = LogLevel::Info;
     const std::string msg("Level-specific message");
 
     // Log a message
@@ -417,7 +417,7 @@ void testMultiFilters()
     Filter levelFilter;
     levelFilter.type = Filter::Type::Level;
     levelFilter.field = levelFilter.typeToField();
-    levelFilter.value = levelToString(Level::Error); // "ERROR"
+    levelFilter.value = levelToString(LogLevel::Error); // "ERROR"
     levelFilter.op = "=";
     filters.push_back(levelFilter);
 
@@ -711,6 +711,7 @@ void testConfigSaveLoad()
     assert(loadedConfig.syncMode == config.syncMode);
     assert(loadedConfig.numThreads == config.numThreads);
     assert(loadedConfig.onlyFileNames == config.onlyFileNames);
+    assert(loadedConfig.minLogLevel == config.minLogLevel);
 
     std::cout << "testConfigSaveLoad passed!" << std::endl;
 }

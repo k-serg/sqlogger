@@ -58,12 +58,12 @@ using namespace LogHelper;
 #define ERR_MSG_FAILED_QUERY "Failed to execute query"
 
 // Macros for simplified logging
-#define LOG_TRACE(logger)   LogMessage(logger, Level::Trace, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
-#define LOG_DEBUG(logger)   LogMessage(logger, Level::Debug, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
-#define LOG_INFO(logger)    LogMessage(logger, Level::Info, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
-#define LOG_WARNING(logger) LogMessage(logger, Level::Warning, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
-#define LOG_ERROR(logger)   LogMessage(logger, Level::Error, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
-#define LOG_FATAL(logger)   LogMessage(logger, Level::Fatal, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
+#define LOG_TRACE(logger)   LogMessage(logger, LogLevel::Trace, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
+#define LOG_DEBUG(logger)   LogMessage(logger, LogLevel::Debug, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
+#define LOG_INFO(logger)    LogMessage(logger, LogLevel::Info, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
+#define LOG_WARNING(logger) LogMessage(logger, LogLevel::Warning, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
+#define LOG_ERROR(logger)   LogMessage(logger, LogLevel::Error, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
+#define LOG_FATAL(logger)   LogMessage(logger, LogLevel::Fatal, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
 
 /**
  * @class Logger
@@ -116,7 +116,7 @@ class LOGGER_API Logger
         * @param level The severity level of the log message.
         * @param message The log message.
         */
-        void log(const Level level, const std::string& message);
+        void log(const LogLevel level, const std::string& message);
 
         /**
          * @brief Clears all log entries from the database.
@@ -147,7 +147,7 @@ class LOGGER_API Logger
          * @param level The severity level to filter by.
          * @return A list of log entries with the specified level.
          */
-        LogEntryList getLogsByLevel(const Level& level);
+        LogEntryList getLogsByLevel(const LogLevel& level);
 
         /**
          * @brief Retrieves log entries within a specified timestamp range.
@@ -182,7 +182,7 @@ class LOGGER_API Logger
          * @brief Sets the minimum log level for messages to be logged.
          * @param minLevel The minimum log level.
          */
-        void setLogLevel(Level minLevel);
+        void setLogLevel(LogLevel minLevel);
 
         /**
          * @brief Waits until the task queue is empty.
@@ -208,7 +208,7 @@ class LOGGER_API Logger
          */
         struct LogTask
         {
-            Level level; /**< The severity level of the log task. */
+            LogLevel level; /**< The severity level of the log task. */
             std::string message; /**< The log message. */
             std::string function; /**< The function where the log task was created. */
             std::string file; /**< The file where the log task was created. */
@@ -228,7 +228,7 @@ class LOGGER_API Logger
         * @param line The line number where the log message was created.
         * @param threadId The ID of the thread that created the log message.
         */
-        void logAdd(const Level level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId);
+        void logAdd(const LogLevel level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId);
 
         /**
          * @brief Processes a single log task.
@@ -262,7 +262,7 @@ class LOGGER_API Logger
         double maxProcessingTime; /**< Maximum processing time for a single task. */
         mutable std::mutex statsMutex; /**< Mutex for statistics synchronization. */
 
-        Level minLevel; /**< Minimum log level for messages to be logged. */
+        LogLevel minLevel; /**< Minimum log level for messages to be logged. */
         bool syncMode; /**< Whether the logger is in synchronous mode. */
         bool onlyFileNames; /**< Log only filenames or full path to the file. */
 };
@@ -283,7 +283,7 @@ class LogMessage
          * @param line The line number where the log message was created.
          * @param threadId The ID of the thread that created the log message.
          */
-        LogMessage(Logger& logger, Level level, const std::string& func, const std::string& file, int line, const std::string& threadId)
+        LogMessage(Logger& logger, LogLevel level, const std::string& func, const std::string& file, int line, const std::string& threadId)
             : logger(logger), level(level), func(func), file(file), line(line), threadId(threadId) {}
 
         LogMessage(const LogMessage&) = delete; /**< Deleted copy constructor. */
@@ -315,7 +315,7 @@ class LogMessage
 
     private:
         Logger& logger; /**< The logger used for logging. */
-        Level level; /**< The severity level of the log message. */
+        LogLevel level; /**< The severity level of the log message. */
         std::string func; /**< The function where the log message was created. */
         std::string file; /**< The file where the log message was created. */
         int line; /**< The line number where the log message was created. */

@@ -33,7 +33,7 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
       totalTasksProcessed(0),
       totalProcessingTime(0),
       maxProcessingTime(0),
-      minLevel(Level::Info),
+      minLevel(config.minLogLevel.value_or(LOG_MIN_LOG_LEVEL)),
       syncMode(config.syncMode.value_or(LOG_SYNC_MODE)),
       onlyFileNames(config.onlyFileNames.value_or(LOG_ONLY_FILE_NAMES))
 {
@@ -72,7 +72,7 @@ void Logger::shutdown()
 * @param level The severity level of the log message.
 * @param message The log message.
 */
-void Logger::log(const Level level, const std::string& message)
+void Logger::log(const LogLevel level, const std::string& message)
 {
     logAdd(level, message, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()));
 }
@@ -86,7 +86,7 @@ void Logger::log(const Level level, const std::string& message)
  * @param line The line number where the log message was created.
  * @param threadId The ID of the thread that created the log message.
  */
-void Logger::logAdd(const Level level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId)
+void Logger::logAdd(const LogLevel level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId)
 {
     if(level < minLevel) return;
 
@@ -293,7 +293,7 @@ LogEntryList Logger::getAllLogs()
  * @param level The severity level to filter by.
  * @return A list of log entries with the specified level.
  */
-LogEntryList Logger::getLogsByLevel(const Level& level)
+LogEntryList Logger::getLogsByLevel(const LogLevel& level)
 {
     Filter filter;
     filter.type = Filter::Type::Level;
@@ -375,7 +375,7 @@ LogEntryList Logger::getLogsByFunction(const std::string& function)
  * @brief Sets the minimum log level for messages to be logged.
  * @param minLevel The minimum log level.
  */
-void Logger::setLogLevel(Level minLevel)
+void Logger::setLogLevel(LogLevel minLevel)
 {
     this->minLevel = minLevel;
 }

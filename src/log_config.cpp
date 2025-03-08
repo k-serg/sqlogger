@@ -48,10 +48,13 @@ namespace LogConfig
             {
                 config.onlyFileNames = (loggerSection.at(LOG_INI_KEY_ONLY_FILE_NAMES) == "true");
             }
+            if(loggerSection.count(LOG_INI_KEY_MIN_LOG_LEVEL))
+            {
+                config.minLogLevel = LogHelper::stringToLevel(loggerSection.at(LOG_INI_KEY_MIN_LOG_LEVEL));
+            }
         }
-
         return config;
-    }
+    };
 
     /**
      * @brief Saves configuration to an INI file.
@@ -75,8 +78,12 @@ namespace LogConfig
         {
             iniData[LOG_INI_SECTION][LOG_INI_KEY_ONLY_FILE_NAMES] = config.onlyFileNames.value() ? "true" : "false";
         }
+        if(config.minLogLevel.has_value())
+        {
+            iniData[LOG_INI_SECTION][LOG_INI_KEY_MIN_LOG_LEVEL] = LogHelper::levelToString(config.minLogLevel.value());
+        }
 
         INI::write(filename, iniData);
-    }
+    };
 };
 

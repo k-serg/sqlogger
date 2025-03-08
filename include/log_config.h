@@ -23,16 +23,20 @@
 #include <optional>
 #include <string>
 #include "sqlogger_config.h"
+#include "log_entry.h"
 
 // Defaults
 #define LOG_NUM_THREADS 4 ///< Default number of threads for asynchronous logging.
 #define LOG_SYNC_MODE 1 ///< Default synchronization mode (true for synchronous logging).
 #define LOG_ONLY_FILE_NAMES 0 ///< Default whether to log only filenames (without full paths).
+constexpr LogLevel LOG_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log level for messages to be logged.
 
 #define LOG_INI_SECTION "Logger"
 #define LOG_INI_KEY_SYNC_MODE "SyncMode"
 #define LOG_INI_KEY_NUM_THREADS "NumThreads"
 #define LOG_INI_KEY_ONLY_FILE_NAMES "OnlyFileNames"
+#define LOG_INI_KEY_MIN_LOG_LEVEL "MinLogLevel"
+
 constexpr char* LOG_INI_FILENAME = SQLOGGER_PROJECT_NAME ".ini";
 
 namespace LogConfig
@@ -45,6 +49,7 @@ namespace LogConfig
         std::optional<bool> syncMode = LOG_SYNC_MODE; ///< Synchronization mode (true for synchronous logging).
         std::optional<size_t> numThreads = LOG_NUM_THREADS; ///< Number of threads for asynchronous logging.
         std::optional<bool> onlyFileNames = LOG_ONLY_FILE_NAMES; ///< Whether to log only filenames (without full paths).
+        std::optional<LogLevel> minLogLevel = LOG_MIN_LOG_LEVEL; ///< Minimum log level for messages to be logged.
 
         /**
         * @brief Loads configuration from an INI file.

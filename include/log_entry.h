@@ -56,10 +56,10 @@
 constexpr char* ALLOWED_FILTER_OP[] = { "=", ">", "<", ">=", "<=", "!=" }; /**< List of allowed operators for Filter structure. */
 
 /**
- * @enum Level
+ * @enum LogLevel
  * @brief Enumeration representing the severity level of a log entry.
  */
-enum class Level
+enum class LogLevel
 {
     Unknown = -1,
     Trace,
@@ -77,21 +77,21 @@ namespace LogHelper
      * @param level The log level to convert.
      * @return The string representation of the log level.
      */
-    static std::string levelToString(Level level)
+    static std::string levelToString(LogLevel level)
     {
         switch(level)
         {
-            case Level::Trace:
+            case LogLevel::Trace:
                 return "TRACE";
-            case Level::Debug:
+            case LogLevel::Debug:
                 return "DEBUG";
-            case Level::Info:
+            case LogLevel::Info:
                 return "INFO";
-            case Level::Warning:
+            case LogLevel::Warning:
                 return "WARNING";
-            case Level::Error:
+            case LogLevel::Error:
                 return "ERROR";
-            case Level::Fatal:
+            case LogLevel::Fatal:
                 return "FATAL";
             default:
                 return "UNKNOWN";
@@ -103,15 +103,15 @@ namespace LogHelper
      * @param levelStr The string representation of the log level.
      * @return The corresponding log level.
      */
-    static Level stringToLevel(const std::string& levelStr)
+    static LogLevel stringToLevel(const std::string& levelStr)
     {
-        if(levelStr == "TRACE") return Level::Trace;
-        if(levelStr == "DEBUG") return Level::Debug;
-        if(levelStr == "INFO") return Level::Info;
-        if(levelStr == "WARNING") return Level::Warning;
-        if(levelStr == "ERROR") return Level::Error;
-        if(levelStr == "FATAL") return Level::Fatal;
-        return Level::Unknown;
+        if(levelStr == "TRACE") return LogLevel::Trace;
+        if(levelStr == "DEBUG") return LogLevel::Debug;
+        if(levelStr == "INFO") return LogLevel::Info;
+        if(levelStr == "WARNING") return LogLevel::Warning;
+        if(levelStr == "ERROR") return LogLevel::Error;
+        if(levelStr == "FATAL") return LogLevel::Fatal;
+        return LogLevel::Unknown;
     };
 
     /**
