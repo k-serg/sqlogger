@@ -29,11 +29,11 @@
 #define TEST_EXPORT_FILE "test_logs_export"
 #define TEST_ON_REAL_DB 1
 #define TEST_NUM_THREADS 4
-#define USE_SYNC_MODE 0
-#define PERFORMANCE_TEST_ENTRIES 100
-#define PRINT_LOGS 0
-#define WAIT_UNTIL_EMPTY_MSEC 1000
-#define ONLY_FILE_NAME 0
+#define TEST_USE_SYNC_MODE 0
+#define TEST_PERFORMANCE_TEST_ENTRIES 100
+#define TEST_PRINT_LOGS 0
+#define TEST_WAIT_UNTIL_EMPTY_MSEC 1000
+#define TEST_ONLY_FILE_NAME 0
 
 using namespace LogHelper;
 using namespace LogConfig;
@@ -46,10 +46,10 @@ using namespace LogConfig;
 #endif // TEST_ON_REAL_DB
 
 // Minimum log level
-constexpr LogLevel LOG_LEVEL = LogLevel::Trace;
+constexpr LogLevel TEST_LOG_LEVEL = LogLevel::Trace;
 
 // Config
-const Config config{ USE_SYNC_MODE, TEST_NUM_THREADS, ONLY_FILE_NAME, LOG_LEVEL };
+const Config config{ TEST_USE_SYNC_MODE, TEST_NUM_THREADS, TEST_ONLY_FILE_NAME, TEST_LOG_LEVEL };
 
 Logger logger(std::move(database), config);
 
@@ -79,7 +79,7 @@ void saveConfig(const Config& config, const std::string& filename)
 */
 void printLogs(const LogEntryList logs)
 {
-#if PRINT_LOGS != 1
+#if TEST_PRINT_LOGS != 1
     return;
 #endif
     std::cout << "Logs size: " << logs.size() << std::endl;
@@ -107,7 +107,7 @@ void testBasicFunctionality()
     LOG_ERROR(logger) << errorMsg;
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -115,7 +115,7 @@ void testBasicFunctionality()
     // Retrieve all logs
     LogEntryList allLogs = logger.getAllLogs();
 
-    // Debug output (PRINT_LOGS == 1)
+    // Debug output (TEST_PRINT_LOGS == 1)
     printLogs(allLogs);
 
     assert(allLogs.size() == 3); // All three messages must be written
@@ -148,7 +148,7 @@ void testFilterByLevel()
     LOG_INFO(logger) << msg;
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -181,7 +181,7 @@ void testFilterByThreadId()
     std::string currentThreadId = LogHelper::threadIdToString(std::this_thread::get_id());
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -211,13 +211,13 @@ void testFilterByFile()
     LOG_INFO(logger) << msg;
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
     // Retrieve logs for the current file
-#if ONLY_FILE_NAME == 1
+#if TEST_ONLY_FILE_NAME == 1
     const std::string file = std::filesystem::path(__FILE__).filename().string();
 #else
     const std::string file = __FILE__;
@@ -246,7 +246,7 @@ void testFilterByFunction()
     LOG_INFO(logger) << msg;
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -278,7 +278,7 @@ void testFilterByTimestampRange()
     std::string currentTime = LogHelper::getCurrentTimestamp();
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -306,7 +306,7 @@ void testClearLogs()
     LOG_INFO(logger) << "Message to be cleared";
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -371,7 +371,7 @@ void testMultiThread()
     }
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -405,7 +405,7 @@ void testMultiFilters()
     LOG_ERROR(logger) << errorMsg;
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -425,7 +425,7 @@ void testMultiFilters()
     Filter fileFilter;
     fileFilter.type = Filter::Type::File;
     fileFilter.field = fileFilter.typeToField();
-#if ONLY_FILE_NAME == 1
+#if TEST_ONLY_FILE_NAME == 1
     fileFilter.value = std::filesystem::path(__FILE__).filename().string();
 #else
     fileFilter.value = __FILE__;
@@ -480,7 +480,7 @@ void testFileExport()
     LOG_ERROR(logger) << errorMsg;
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -569,7 +569,7 @@ void testErrorHandling()
     LOG_INFO(testLogger) << message;
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -676,7 +676,7 @@ void testPerformance()
     // Clear the database before starting the test
     logger.clearLogs();
 
-    const int numLogs = PERFORMANCE_TEST_ENTRIES;
+    const int numLogs = TEST_PERFORMANCE_TEST_ENTRIES;
     auto startTime = std::chrono::high_resolution_clock::now();
 
     for(int i = 0; i < numLogs; ++i)
@@ -685,7 +685,7 @@ void testPerformance()
     }
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -735,14 +735,14 @@ int main()
     std::cout << "Test on mock data" << std::endl;
 #endif
 
-#if USE_SYNC_MODE == 1
+#if TEST_USE_SYNC_MODE == 1
     std::cout << "Sync Mode: ON" << std::endl;
 #else
     std::cout << "Sync Mode: OFF" << std::endl;
-    std::cout << "Number of threads: " << LOG_NUM_THREADS << std::endl;
+    std::cout << "Number of threads: " << TEST_NUM_THREADS << std::endl << std::endl;
 #endif
 
-    logger.setLogLevel(LOG_LEVEL);
+    logger.setLogLevel(TEST_LOG_LEVEL);
 
     try
     {
