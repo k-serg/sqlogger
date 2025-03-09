@@ -53,7 +53,8 @@ set(HEADERS
     "./include/fs_helper.h"
     "./include/log_config.h"
     "./include/ini_parser.h"
- )
+    "./include/log_strings.h"
+)
 
 set(SOURCES
     "./src/logger.cpp"

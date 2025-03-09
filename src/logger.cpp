@@ -182,7 +182,7 @@ void Logger::processTask(const LogTask& task)
     }
     catch(const std::exception& e)
     {
-        logError("Error in processTask: " + std::string(e.what()));
+        logError(ERR_MSG_FAILED_TASK + std::string(e.what()));
     }
 }
 
@@ -235,7 +235,7 @@ void Logger::logError(const std::string& errorMessage)
     std::ofstream errorLog(ERR_LOG_FILE, std::ios::app);
     if(!errorLog.is_open())
     {
-        std::cerr << "Failed to open error log file: " << ERR_LOG_FILE << std::endl;
+        std::cerr << ERR_MSG_FAILED_OPEN_ERR_LOG << ERR_LOG_FILE << std::endl;
         return;
     }
     errorLog << getCurrentTimestamp() << " [ERROR] " << errorMessage << std::endl;
@@ -273,7 +273,7 @@ LogEntryList Logger::getLogsByFilters(const std::vector<Filter> & filters)
 {
     if(!waitUntilEmpty())
     {
-        logError("Timeout while waiting for task queue to empty");
+        logError(ERR_MSG_TIMEOUT_TASK_QUEUE);
     }
     std::scoped_lock lock(logMutex, dbMutex);
     return reader.getLogsByFilters(filters);

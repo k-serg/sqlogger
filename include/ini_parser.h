@@ -25,6 +25,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include "log_strings.h"
 
 namespace INI
 {

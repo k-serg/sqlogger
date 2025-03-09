@@ -55,7 +55,6 @@ using namespace LogHelper;
 
 // Constants
 #define ERR_LOG_FILE "error_log.txt"
-#define ERR_MSG_FAILED_QUERY "Failed to execute query"
 
 // Macros for simplified logging
 #define LOG_TRACE(logger)   LogMessage(logger, LogLevel::Trace, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))

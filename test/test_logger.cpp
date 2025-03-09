@@ -77,7 +77,7 @@ void saveConfig(const Config& config, const std::string& filename)
  * @brief Print logs and it size into stdout
  * @param logs LogEntryList
 */
-void printLogs(const LogEntryList logs)
+void printLogs(const LogEntryList& logs)
 {
 #if TEST_PRINT_LOGS != 1
     return;

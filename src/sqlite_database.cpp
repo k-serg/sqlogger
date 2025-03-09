@@ -20,6 +20,7 @@
 #include <iostream>
 #include "sqlite_database.h"
 #include "fs_helper.h"
+#include "log_strings.h"
 
 /**
  * @brief Constructor for SQLiteDatabase
@@ -30,20 +31,20 @@ SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath)
     std::string errMsg;
     if(!FSHelper::CreateDir(dbPath, errMsg))
     {
-        throw std::runtime_error("Failed to create directory: " + errMsg);
+        throw std::runtime_error(ERR_MSG_FAILED_CREATE_DIR + errMsg);
     }
 
     const std::string utf8dbPath = std::filesystem::path(dbPath).u8string();
 
     if(sqlite3_open(utf8dbPath.c_str(), & db) != SQLITE_OK)
     {
-        throw std::runtime_error("Failed to open database: " + dbPath);
+        throw std::runtime_error(ERR_MSG_FAILED_OPEN_DB + dbPath);
     }
 
 #if USE_WAL_MODE == 1
     if(!execute("PRAGMA journal_mode=WAL;"))
     {
-        throw std::runtime_error("Failed to enable WAL mode");
+        throw std::runtime_error(ERR_MSG_FAILED_ENABLE_WAL);
     }
 #endif
 
@@ -67,7 +68,7 @@ bool SQLiteDatabase::execute(const std::string& query)
     char* errMsg = nullptr;
     if(sqlite3_exec(db, query.c_str(), nullptr, nullptr, & errMsg) != SQLITE_OK)
     {
-        std::cerr << "SQL error: " << errMsg << std::endl;
+        std::cerr << ERR_MSG_SQL_ERR << errMsg << std::endl;
         sqlite3_free(errMsg);
         reconnect();
         return false;
@@ -114,7 +115,7 @@ std::vector<std::map<std::string, std::string>> SQLiteDatabase::query(const std:
     else
     {
         // Log an error if the query fails
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << ERR_MSG_FAILED_QUERY << ": " << sqlite3_errmsg(db) << std::endl;
     }
 
     return result;
@@ -138,7 +139,7 @@ bool SQLiteDatabase::executeWithParams(const std::string& query, const std::vect
 
         if(sqlite3_step(stmt) != SQLITE_DONE)
         {
-            std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+            std::cerr << ERR_MSG_FAILED_QUERY << ": " << sqlite3_errmsg(db) << std::endl;
             sqlite3_finalize(stmt);
             return false;
         }
@@ -148,7 +149,7 @@ bool SQLiteDatabase::executeWithParams(const std::string& query, const std::vect
     }
     else
     {
-        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << ERR_MSG_FAILED_PREPARE_STMT << sqlite3_errmsg(db) << std::endl;
         return false;
     }
 }
@@ -161,13 +162,13 @@ void SQLiteDatabase::reconnect()
     sqlite3_close(db);
     if(sqlite3_open(dbPath.c_str(), & db) != SQLITE_OK)
     {
-        throw std::runtime_error("Failed to reconnect to database");
+        throw std::runtime_error(ERR_MSG_FAILED_RECONNECT_DB);
     }
 
 #if USE_WAL_MODE == 1
     if(!execute("PRAGMA journal_mode=WAL;"))
     {
-        throw std::runtime_error("Failed to enable WAL mode");
+        throw std::runtime_error(ERR_MSG_FAILED_ENABLE_WAL);
     }
 #endif
 }

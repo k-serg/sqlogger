@@ -32,7 +32,7 @@ namespace INI
         std::ifstream file(filename);
         if(!file.is_open())
         {
-            throw std::runtime_error("Failed to open file: " + filename);
+            throw std::runtime_error(ERR_MSG_FAILED_OPEN_FILE + filename);
         }
 
         std::string line;
@@ -88,7 +88,7 @@ namespace INI
         std::ofstream file(filename);
         if(!file.is_open())
         {
-            throw std::runtime_error("Failed to open file for writing: " + filename);
+            throw std::runtime_error(ERR_MSG_FAILED_OPEN_FILE_RW + filename);
         }
 
         for(const auto & [section, keys] : data)

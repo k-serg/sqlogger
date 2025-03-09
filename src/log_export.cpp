@@ -31,7 +31,7 @@ void LogExport::exportToTXT(const std::string& filePath, const LogEntryList& ent
     std::ofstream outFile(filePath);
     if(!outFile.is_open())
     {
-        throw std::runtime_error("Failed to open file: " + filePath);
+        throw std::runtime_error(ERR_MSG_FAILED_OPEN_FILE + filePath);
     }
     for(const auto & entry : entryList)
     {
@@ -52,7 +52,7 @@ void LogExport::exportToCSV(const std::string& filePath, const LogEntryList& ent
     std::ofstream outFile(filePath);
     if(!outFile.is_open())
     {
-        throw std::runtime_error("Failed to open file: " + filePath);
+        throw std::runtime_error(ERR_MSG_FAILED_OPEN_FILE + filePath);
     }
     outFile << EXP_FIELD_ID << delimiter
             << EXP_FIELD_TIMESTAMP << delimiter
@@ -87,7 +87,7 @@ void LogExport::exportToXML(const std::string& filePath, const LogEntryList& ent
     std::ofstream outFile(filePath);
     if(!outFile.is_open())
     {
-        throw std::runtime_error("Failed to open file: " + filePath);
+        throw std::runtime_error(ERR_MSG_FAILED_OPEN_FILE + filePath);
     }
     outFile << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" << std::endl;
     outFile << "<LogEntries>" << std::endl;
@@ -119,7 +119,7 @@ void LogExport::exportToJSON(const std::string& filePath, const LogEntryList& en
     std::ofstream outFile(filePath);
     if(!outFile.is_open())
     {
-        throw std::runtime_error("Failed to open file: " + filePath);
+        throw std::runtime_error(ERR_MSG_FAILED_OPEN_FILE + filePath);
     }
     outFile << "[" << std::endl;
     for(size_t i = 0; i < entryList.size(); ++i)
@@ -151,7 +151,7 @@ void LogExport::exportToYAML(const std::string& filePath, const LogEntryList& en
     std::ofstream outFile(filePath);
     if(!outFile.is_open())
     {
-        throw std::runtime_error("Failed to open file: " + filePath);
+        throw std::runtime_error(ERR_MSG_FAILED_OPEN_FILE + filePath);
     }
 
     for(const auto & entry : entryList)
@@ -224,7 +224,7 @@ void LogExport::exportTo(const std::string& filePath, const Format& format, cons
     std::string errMsg;
     if(!FSHelper::CreateDir(filePath, errMsg))
     {
-        throw std::runtime_error("Failed to create directory: " + errMsg);
+        throw std::runtime_error(ERR_MSG_FAILED_CREATE_DIR + errMsg);
     }
 
     switch(format)
@@ -245,7 +245,7 @@ void LogExport::exportTo(const std::string& filePath, const Format& format, cons
             exportToYAML(filePath, entryList);
             break;
         default:
-            throw std::runtime_error("Unknown export format");
+            throw std::runtime_error(ERR_MG_UNKNOWN_EXPORT_FMT);
             break;
     }
 }

@@ -29,6 +29,7 @@
 #include <chrono>
 #include <iomanip>
 #include <algorithm>
+#include "log_strings.h"
 
 // Define constants for table field names
 #define LOG_TABLE_NAME "logs"
@@ -260,7 +261,7 @@ struct LogEntry
      * @param name Whether to include field names in the output.
      * @return The string representation of the log entry.
      */
-    std::string print(const std::string& delimiter = ",", bool name = true) const
+    std::string print(const std::string& delimiter = ENTRY_DELIMITER, bool name = true) const
     {
         std::stringstream sout;
         sout << (name ? "Timestamp: " : "") << timestamp
