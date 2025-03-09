@@ -28,6 +28,7 @@
 #include <thread>
 #include <chrono>
 #include <iomanip>
+#include <algorithm>
 
 // Define constants for table field names
 #define LOG_TABLE_NAME "logs"
@@ -49,6 +50,14 @@
 #define EXP_FIELD_FILE "File"
 #define EXP_FIELD_LINE "Line"
 #define EXP_FIELD_THREAD_ID "ThreadID"
+
+#define LOG_LEVEL_UNKNOWN "UNKNOWN"
+#define LOG_LEVEL_TRACE "TRACE"
+#define LOG_LEVEL_DEBUG "DEBUG"
+#define LOG_LEVEL_INFO "INFO"
+#define LOG_LEVEL_WARNING "WARNING"
+#define LOG_LEVEL_ERROR "ERROR"
+#define LOG_LEVEL_FATAL "FATAL"
 
 #define ENTRY_DELIMITER ","
 #define TIMESTAMP_FMT "%Y-%m-%d %H:%M:%S"
@@ -73,6 +82,18 @@ enum class LogLevel
 namespace LogHelper
 {
     /**
+     * @brief Transform string into upper case. ASCII-only.
+     * @param input Source string.
+     * @return String transformed into upper case.
+    */
+    static std::string toUpperCase(const std::string& input)
+    {
+        std::string result = input;
+        std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+        return result;
+    };
+
+    /**
      * @brief Converts a log level to its string representation.
      * @param level The log level to convert.
      * @return The string representation of the log level.
@@ -82,19 +103,19 @@ namespace LogHelper
         switch(level)
         {
             case LogLevel::Trace:
-                return "TRACE";
+                return LOG_LEVEL_TRACE;
             case LogLevel::Debug:
-                return "DEBUG";
+                return LOG_LEVEL_DEBUG;
             case LogLevel::Info:
-                return "INFO";
+                return LOG_LEVEL_INFO;
             case LogLevel::Warning:
-                return "WARNING";
+                return LOG_LEVEL_WARNING;
             case LogLevel::Error:
-                return "ERROR";
+                return LOG_LEVEL_ERROR;
             case LogLevel::Fatal:
-                return "FATAL";
+                return LOG_LEVEL_FATAL;
             default:
-                return "UNKNOWN";
+                return LOG_LEVEL_UNKNOWN;
         }
     };
 
@@ -103,14 +124,14 @@ namespace LogHelper
      * @param levelStr The string representation of the log level.
      * @return The corresponding log level.
      */
-    static LogLevel stringToLevel(const std::string& levelStr)
+    static LogLevel stringToLevel(const std::string& levelStr, const bool ignoreCase = true)
     {
-        if(levelStr == "TRACE") return LogLevel::Trace;
-        if(levelStr == "DEBUG") return LogLevel::Debug;
-        if(levelStr == "INFO") return LogLevel::Info;
-        if(levelStr == "WARNING") return LogLevel::Warning;
-        if(levelStr == "ERROR") return LogLevel::Error;
-        if(levelStr == "FATAL") return LogLevel::Fatal;
+        if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_TRACE) return LogLevel::Trace;
+        if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_DEBUG) return LogLevel::Debug;
+        if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_INFO) return LogLevel::Info;
+        if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_WARNING) return LogLevel::Warning;
+        if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_ERROR) return LogLevel::Error;
+        if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_FATAL) return LogLevel::Fatal;
         return LogLevel::Unknown;
     };
 
