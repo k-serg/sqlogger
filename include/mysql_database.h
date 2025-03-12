@@ -17,47 +17,58 @@
  * Copyright (C) 2025 Sergey K. sergey[no_spam]@greenblit.com
  */
 
-#ifndef SQLITE_DATABASE_H
-#define SQLITE_DATABASE_H
+#ifndef MYSQL_DATABASE_H
+#define MYSQL_DATABASE_H
 
-#include <sqlite3.h>
+#include <mysql.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
 #include <map>
+#include <iostream>
 #include "database_interface.h"
+#include "database_helper.h"
+#include "log_config.h"
+#include "log_strings.h"
 
-#define USE_WAL_MODE 1
+#ifndef DB_ALLOW_CREATE
+    #define DB_ALLOW_CREATE 1
+#endif // !DB_ALLOW_CREATE
+
+#ifndef DB_ALLOW_DROP
+    #define DB_ALLOW_DROP 0
+#endif // !DB_ALLOW_DROP
+
 
 /**
- * @class SQLiteDatabase
- * @brief Implementation of the IDatabase interface for SQLite databases.
+ * @class MySQLDatabase
+ * @brief Implementation of the IDatabase interface for MySQL databases.
  */
-class SQLiteDatabase : public IDatabase
+class MySQLDatabase : public IDatabase
 {
     public:
         /**
-         * @brief Constructs an SQLiteDatabase object.
-         * @param dbPath The path to the SQLite database file.
-         * @throws std::runtime_error if the database cannot be opened.
+         * @brief Constructs a MySQLDatabase object.
+         * @param connectionString The connection string in the format "host=...;user=...;password=...;db=...".
+         * @throws std::runtime_error if the MySQL library cannot be initialized.
          */
-        SQLiteDatabase(const std::string& dbPath);
+        MySQLDatabase(const std::string& connectionString);
 
         /**
-         * @brief Destructor for SQLiteDatabase.
+         * @brief Destructor for MySQLDatabase.
          * Closes the database connection.
          */
-        ~SQLiteDatabase();
+        ~MySQLDatabase();
 
         /**
-         * @brief Connects to the SQLite database.
-         * @param connString The path to the SQLite database file.
+         * @brief Connects to the MySQL database using the provided connection string.
+         * @param connectionString The connection string in the format "host=...;user=...;password=...;database=...".
          * @return True if the connection was successful, false otherwise.
          */
         bool connect(const std::string& connectionString) override;
 
         /**
-         * @brief Disconnects from the SQLite database.
+         * @brief Disconnects from the MySQL database.
          */
         void disconnect() override;
 
@@ -77,7 +88,7 @@ class SQLiteDatabase : public IDatabase
         /**
          * @brief Executes an SQL query and returns the result.
          * @param query The SQL query to execute.
-         * @return A vector of maps representing the query result.
+         * @return A vector of maps representing the query result. Each map contains key-value pairs of column names and their corresponding values.
          */
         std::vector<std::map<std::string, std::string>> query(const std::string& query) override;
 
@@ -115,42 +126,62 @@ class SQLiteDatabase : public IDatabase
         bool rollbackTransaction() override;
 
         /**
+         * @brief Drops the database if it exists.
+         *
+         * This method attempts to drop the database specified in the connection string.
+         * It first disconnects from any existing database connection, initializes a new
+         * MySQL connection, and then executes a `DROP DATABASE IF EXISTS` query.
+         *
+         * @param connectionString The connection string containing database parameters.
+         *                         The string should be in the format:
+         *                         "host=...;user=...;pass=...;database=...;port=...".
+         *
+         * @return true if the database was successfully dropped, false otherwise.
+         *
+         * @note This method is only executed if `DB_ALLOW_DROP` is set to 1.
+         *       If `DB_ALLOW_DROP` is 0, the method will return false and set
+         *       `errorMessage` to indicate that dropping the database is not allowed.
+         *
+         * @warning Dropping a database is a destructive operation and cannot be undone.
+         *          Use this method with caution.
+         */
+        bool dropDatabaseIfExists(const std::string& connectionString) override;
+
+        /**
          * @brief Gets the last error message.
          * @return The last error message as a string.
          */
         std::string getLastError() const override;
 
         /**
-        * @brief Drops the database if it exists.
-        * @return True if the database was successfully dropped, false otherwise.
-        */
-        bool dropDatabaseIfExists(const std::string& dbName) override
-        {
-            return false;
-        }; // TODO: Implement
-
+         * @brief Gets the type of the database.
+         * @return The database type (MySQL in this case).
+         */
         DataBaseType getDatabaseType() const override
         {
             return dbType;
         };
 
     private:
-        sqlite3* db; /**< SQLite database handle. */
-        std::string dbPath; /**< Path to the database file. */
-        DataBaseType dbType;
+        MYSQL* conn; /**< MySQL connection handle. */
 
         /**
-         * @brief Reconnects to the database.
-         * @throws std::runtime_error if reconnection fails.
+         * @brief Parses a MySQL connection string.
+         * @param connectionString The connection string in the format "host=...;user=...;password=...;database=...".
+         * @return A map containing the connection parameters.
          */
-        void reconnect();
+        std::map<std::string, std::string> parseConnectionString(const std::string& connectionString);
 
         /**
         * @brief Creates a database if it does not already exist.
-        * @param dbPath The path to the SQLite database file.
+        * @param connectionString The connection string containing database parameters.
         * @return True if the database was created or already exists, false otherwise.
         */
-        bool createDatabaseIfNotExists(const std::string& dbPath);
+        bool createDatabaseIfNotExists(const std::string& connectionString);
+
+        DataBaseType dbType; /**< The type of the database (MySQL). */
+
+        bool allowCreateDB; /**< Allow create database on server (execute CREATE DATABASE). */
 };
 
-#endif // SQLITE_DATABASE_H
+#endif // MYSQL_DATABASE_H

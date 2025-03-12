@@ -32,12 +32,13 @@
 #include "log_strings.h"
 
 // Define constants for table field names
+#define LOG_DATABASE_NAME "logs_db"
 #define LOG_TABLE_NAME "logs"
 #define FIELD_ID "id"
 #define FIELD_TIMESTAMP "timestamp"
 #define FIELD_LEVEL "level"
 #define FIELD_MESSAGE "message"
-#define FIELD_FUNCTION "function"
+#define FIELD_FUNCTION "func"
 #define FIELD_FILE "file"
 #define FIELD_LINE "line"
 #define FIELD_THREAD_ID "thread_id"

@@ -91,6 +91,13 @@ namespace LogExport
      * @return The escaped string.
      */
     std::string escapeJsonString(const std::string& str);
+
+    /**
+    * @brief Escapes special characters in a YAML string.
+    * @param str The string to escape.
+    * @return The escaped string.
+    */
+    std::string escapeYamlString(const std::string& str);
 };
 
 #endif // !LOG_EXPORT_H

@@ -23,10 +23,11 @@
 #include "log_strings.h"
 
 /**
- * @brief Constructor for SQLiteDatabase
- * @param dbPath The path to the SQLite database file
+ * @brief Constructs an SQLiteDatabase object.
+ * @param dbPath The path to the SQLite database file.
+ * @throws std::runtime_error if the database cannot be opened.
  */
-SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath)
+SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath), db(nullptr), dbType(DataBaseType::SQLite)
 {
     std::string errMsg;
     if(!FSHelper::CreateDir(dbPath, errMsg))
@@ -34,34 +35,92 @@ SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath)
         throw std::runtime_error(ERR_MSG_FAILED_CREATE_DIR + errMsg);
     }
 
-    const std::string utf8dbPath = std::filesystem::path(dbPath).u8string();
+    if(!createDatabaseIfNotExists(dbPath))
+    {
+        throw std::runtime_error(ERR_MSG_FAILED_CREATE_DB + getLastError());
+    }
 
-    if(sqlite3_open(utf8dbPath.c_str(), & db) != SQLITE_OK)
+    if(!connect(dbPath))
     {
         throw std::runtime_error(ERR_MSG_FAILED_OPEN_DB + dbPath);
+    }
+}
+
+/**
+ * @brief Destructor for SQLiteDatabase.
+ * Closes the database connection.
+ */
+SQLiteDatabase::~SQLiteDatabase()
+{
+    disconnect();
+}
+
+/**
+ * @brief Creates a database if it does not already exist.
+ * @param dbPath The path to the SQLite database file.
+ * @return True if the database was created or already exists, false otherwise.
+ */
+bool SQLiteDatabase::createDatabaseIfNotExists(const std::string& dbPath)
+{
+    if(sqlite3_open(dbPath.c_str(), & db) != SQLITE_OK)
+    {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief Connects to the SQLite database.
+ * @param connString The path to the SQLite database file.
+ * @return True if the connection was successful, false otherwise.
+ */
+bool SQLiteDatabase::connect(const std::string& connectionString)
+{
+    if(db)
+    {
+        sqlite3_close(db);
+    }
+
+    if(sqlite3_open(connectionString.c_str(), & db) != SQLITE_OK)
+    {
+        return false;
     }
 
 #if USE_WAL_MODE == 1
     if(!execute("PRAGMA journal_mode=WAL;"))
     {
-        throw std::runtime_error(ERR_MSG_FAILED_ENABLE_WAL);
+        return false;
     }
 #endif
 
+    return true;
 }
 
 /**
- * @brief Destructor for SQLiteDatabase
+ * @brief Disconnects from the SQLite database.
  */
-SQLiteDatabase::~SQLiteDatabase()
+void SQLiteDatabase::disconnect()
 {
-    sqlite3_close(db);
+    if(db)
+    {
+        sqlite3_close(db);
+        db = nullptr;
+    }
 }
 
 /**
- * @brief Execute an SQL query
- * @param query The SQL query to execute
- * @return True if the query was executed successfully, false otherwise
+ * @brief Checks if the database is connected.
+ * @return True if the database is connected, false otherwise.
+ */
+bool SQLiteDatabase::isConnected() const
+{
+    return db != nullptr;
+}
+
+/**
+ * @brief Executes an SQL query.
+ * @param query The SQL query to execute.
+ * @return True if the query was executed successfully, false otherwise.
  */
 bool SQLiteDatabase::execute(const std::string& query)
 {
@@ -77,44 +136,36 @@ bool SQLiteDatabase::execute(const std::string& query)
 }
 
 /**
- * @brief Execute an SQL query and return the result
- * @param query The SQL query to execute
- * @return A vector of maps representing the query result
+ * @brief Executes an SQL query and returns the result.
+ * @param query The SQL query to execute.
+ * @return A vector of maps representing the query result.
  */
 std::vector<std::map<std::string, std::string>> SQLiteDatabase::query(const std::string& query)
 {
     std::vector<std::map<std::string, std::string>> result;
     sqlite3_stmt* stmt;
 
-    // Prepare the SQL statement
     if(sqlite3_prepare_v2(db, query.c_str(), -1, & stmt, nullptr) == SQLITE_OK)
     {
-        // Fetch rows one by one
         while(sqlite3_step(stmt) == SQLITE_ROW)
         {
             std::map<std::string, std::string> row;
             int columnCount = sqlite3_column_count(stmt);
 
-            // Iterate through columns
             for(int i = 0; i < columnCount; ++i)
             {
-                const char* columnName = sqlite3_column_name(stmt, i); // Get column name
-                const char* columnValue = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i)); // Get column value
-
-                // Add column name and value to the row
+                const char* columnName = sqlite3_column_name(stmt, i);
+                const char* columnValue = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i));
                 row[columnName] = columnValue ? columnValue : "";
             }
 
-            // Add the row to the result
             result.push_back(row);
         }
 
-        // Finalize the statement
         sqlite3_finalize(stmt);
     }
     else
     {
-        // Log an error if the query fails
         std::cerr << ERR_MSG_FAILED_QUERY << ": " << sqlite3_errmsg(db) << std::endl;
     }
 
@@ -122,10 +173,10 @@ std::vector<std::map<std::string, std::string>> SQLiteDatabase::query(const std:
 }
 
 /**
- * @brief Prepare and execute an SQL query with parameters
- * @param query The SQL query to execute
- * @param params The parameters to bind to the query
- * @return True if the query was executed successfully, false otherwise
+ * @brief Prepares and executes an SQL query with parameters.
+ * @param query The SQL query to execute.
+ * @param params The parameters to bind to the query.
+ * @return True if the query was executed successfully, false otherwise.
  */
 bool SQLiteDatabase::executeWithParams(const std::string& query, const std::vector<std::string> & params)
 {
@@ -155,20 +206,71 @@ bool SQLiteDatabase::executeWithParams(const std::string& query, const std::vect
 }
 
 /**
- * @brief Reconnect to the database
+ * @brief Executes an SQL query and returns the number of affected rows.
+ * @param query The SQL query to execute.
+ * @return The number of affected rows, or -1 if an error occurred.
+ */
+int SQLiteDatabase::executeWithRowCount(const std::string& query)
+{
+    char* errMsg = nullptr;
+    if(sqlite3_exec(db, query.c_str(), nullptr, nullptr, & errMsg) != SQLITE_OK)
+    {
+        std::cerr << ERR_MSG_SQL_ERR << errMsg << std::endl;
+        sqlite3_free(errMsg);
+        return -1;
+    }
+    return sqlite3_changes(db);
+}
+
+/**
+ * @brief Begins a transaction.
+ * @return True if the transaction was started successfully, false otherwise.
+ */
+bool SQLiteDatabase::beginTransaction()
+{
+    return execute("BEGIN TRANSACTION;");
+}
+
+/**
+ * @brief Commits the current transaction.
+ * @return True if the transaction was committed successfully, false otherwise.
+ */
+bool SQLiteDatabase::commitTransaction()
+{
+    return execute("COMMIT;");
+}
+
+/**
+ * @brief Rolls back the current transaction.
+ * @return True if the transaction was rolled back successfully, false otherwise.
+ */
+bool SQLiteDatabase::rollbackTransaction()
+{
+    return execute("ROLLBACK;");
+}
+
+/**
+ * @brief Gets the last error message.
+ * @return The last error message as a string.
+ */
+std::string SQLiteDatabase::getLastError() const
+{
+    if(db)
+    {
+        return sqlite3_errmsg(db);
+    }
+    return "Database is not connected.";
+}
+
+/**
+ * @brief Reconnects to the database.
+ * @throws std::runtime_error if reconnection fails.
  */
 void SQLiteDatabase::reconnect()
 {
-    sqlite3_close(db);
-    if(sqlite3_open(dbPath.c_str(), & db) != SQLITE_OK)
+    disconnect();
+    if(!connect(dbPath))
     {
         throw std::runtime_error(ERR_MSG_FAILED_RECONNECT_DB);
     }
-
-#if USE_WAL_MODE == 1
-    if(!execute("PRAGMA journal_mode=WAL;"))
-    {
-        throw std::runtime_error(ERR_MSG_FAILED_ENABLE_WAL);
-    }
-#endif
 }

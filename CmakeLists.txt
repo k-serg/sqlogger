@@ -1,45 +1,79 @@
+# Set the minimum required version of CMake
 cmake_minimum_required(VERSION 3.22)
 
+# Define the project name
 set(PROJECT_NAME sqlogger)
 
+# Initialize the project
 project(${PROJECT_NAME})
 
+# Set the version numbers for the project
 set(SQLOGGER_VERSION_MAJOR 1)
-set(SQLOGGER_VERSION_MINOR 1)
+set(SQLOGGER_VERSION_MINOR 2)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
 
+# Configure the version header file
 configure_file("sqlogger_config.h.in" "sqlogger_config.h" @ONLY)
 
-# Set C++ standard (C++17)
+# Set the C++ standard to C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Include the current directory in the include path
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+# Add the include directory for the project
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 
-option(BUILD_SHARED_LIBS "Build shared libs" OFF)
+# Define CMake options
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(USE_SYSTEM_SQLITE "Use system SQLite" OFF)
-option(BUILD_TEST "Build test app" ON)
+option(BUILD_TEST "Build test application" ON)
+option(USE_MYSQL "Enable MySQL support" OFF)
 
-# Configuration for symbol export (for Windows)
+# Configure symbol export for Windows
 if (WIN32)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-# Find SQLite3 library
+# Find and configure SQLite3 library
 if (USE_SYSTEM_SQLITE)
     find_package(SQLite3 REQUIRED)
     if (SQLite3_FOUND)
-        message(STATUS "SQLite3 found: "${SQLite3_INCLUDE_DIR})
+        message(STATUS "SQLite3 found: ${SQLite3_INCLUDE_DIR}")
         include_directories(${SQLite3_INCLUDE_DIR})
     endif()
 else()
+    # Use the bundled SQLite amalgamation
     add_subdirectory(./3rdparty/sqlite-amalgamation)
 endif()
 
-# Add source files
+# Find and configure MySQL library (if USE_MYSQL is enabled)
+if (USE_MYSQL)
+    # Platform-specific paths for MySQL
+    if (WIN32)
+        # Paths for Windows
+        set(MYSQL_INCLUDE_DIR "C:/Program Files/MySQL/MySQL Server 8.0/include")
+        set(MYSQL_LIBRARY "C:/Program Files/MySQL/MySQL Server 8.0/lib/libmysql.lib")
+    else()
+        # Paths for Linux
+        set(MYSQL_INCLUDE_DIR "/usr/include/mysql")
+        set(MYSQL_LIBRARY "/usr/lib/x86_64-linux-gnu/libmysqlclient.so")
+    endif()
+
+    # Check if MySQL headers and library exist
+    if (EXISTS ${MYSQL_INCLUDE_DIR} AND EXISTS ${MYSQL_LIBRARY})
+        set(MySQL_FOUND TRUE)
+        set(MySQL_INCLUDE_DIRS ${MYSQL_INCLUDE_DIR})
+        set(MySQL_LIBRARIES ${MYSQL_LIBRARY})
+        message(STATUS "MySQL found: ${MySQL_INCLUDE_DIRS}, ${MySQL_LIBRARIES}")
+    else()
+        message(FATAL_ERROR "MySQL not found. Please install MySQL development libraries.")
+    endif()
+endif()
+
+# Define the list of header files
 set(HEADERS
     "./include/logger.h"
     "./include/database_interface.h"
@@ -54,11 +88,14 @@ set(HEADERS
     "./include/log_config.h"
     "./include/ini_parser.h"
     "./include/log_strings.h"
+    "./include/database_helper.h"
 )
 
+# Define the list of source files
 set(SOURCES
     "./src/logger.cpp"
     "./src/sqlite_database.cpp"
+    "./src/mock_database.cpp"
     "./src/log_writer.cpp"
     "./src/log_reader.cpp"
     "./src/thread_pool.cpp"
@@ -66,16 +103,22 @@ set(SOURCES
     "./src/fs_helper.cpp"
     "./src/log_config.cpp"
     "./src/ini_parser.cpp"
-)
+ )
 
-# Create the library
+# Add MySQL header and source files if USE_MYSQL is enabled
+if (USE_MYSQL)
+    list(APPEND HEADERS "./include/mysql_database.h")
+    list(APPEND SOURCES "./src/mysql_database.cpp")
+endif()
+
+# Create the library (shared or static based on BUILD_SHARED_LIBS)
 if (BUILD_SHARED_LIBS)
     add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES})
 else()
     add_library(${PROJECT_NAME} STATIC ${HEADERS} ${SOURCES})
 endif()
 
-# Link SQLite3
+# Link SQLite3 library
 if (USE_SYSTEM_SQLITE)
     target_link_libraries(${PROJECT_NAME} PRIVATE SQLite::SQLite3)
 else()
@@ -86,64 +129,77 @@ else()
     endif()
 endif()
 
-# Set properties for symbol export
+# Link MySQL library if USE_MYSQL is enabled
+if (USE_MYSQL)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${MySQL_LIBRARIES})
+endif()
+
+# Configure symbol export for Windows
 if (WIN32 AND BUILD_SHARED_LIBS)
     target_compile_definitions(${PROJECT_NAME} PRIVATE LOGGER_EXPORTS)
 endif()
 
+# Link additional libraries for Windows
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE Rpcrt4)
 endif()
 
-# Set output directory for the library
+# Set output directories for the library
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-# Set directory for header files
+# Set include directories for the library
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR})
 
+# Include SQLite amalgamation directory if not using system SQLite
 if (NOT USE_SYSTEM_SQLITE)
     include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/sqlite-amalgamation)
 endif()
 
-# Set installation directory for the library
+# Include MySQL directory
+if (USE_MYSQL)
+    include_directories(${PROJECT_NAME} PRIVATE ${MySQL_INCLUDE_DIRS})
+endif()
+
+# Install the library
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
 )
 
-# Set installation directory for header files
+# Install header files
 install(FILES ${HEADERS} DESTINATION include)
 
+# Configure and build tests if BUILD_TEST is enabled
 if (BUILD_TEST)
-set(TEST_NAME test_${PROJECT_NAME})
+    set(TEST_NAME test_${PROJECT_NAME})
 
-set(SOURCE_TEST_logger
+    set(SOURCE_TEST_logger
         "test/test_logger.cpp"
-)
+    )
 
-if (BUILD_SHARED_LIBS)
-    add_executable(${TEST_NAME} ${SOURCE_TEST_logger})
-else()
-    add_executable(${TEST_NAME} ${SOURCE_TEST_logger} ${HEADERS} ${SOURCES})
+    if (BUILD_SHARED_LIBS)
+        add_executable(${TEST_NAME} ${SOURCE_TEST_logger})
+    else()
+        add_executable(${TEST_NAME} ${SOURCE_TEST_logger} ${HEADERS} ${SOURCES})
+    endif()
+
+    target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME})
+
+    # Set output directory for tests
+    set_target_properties(${TEST_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+
+    # Enable testing and add a test target
+    enable_testing()
+    add_test(NAME logger_test COMMAND ${TEST_NAME})
+
+    # Install the test executable
+    install(TARGETS ${TEST_NAME} RUNTIME DESTINATION bin)
 endif()
-
-target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME})
-
-# Set output directory for tests
-set_target_properties(${TEST_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
-
-# Add target for running tests
-enable_testing()
-add_test(NAME logger_test COMMAND ${TEST_NAME})
-
-install(TARGETS ${TEST_NAME} RUNTIME DESTINATION bin)
-endif()
-

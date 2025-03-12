@@ -63,15 +63,35 @@ void LogWriter::clearLogs()
  */
 void LogWriter::createTable()
 {
-    std::string createTableQuery = "CREATE TABLE IF NOT EXISTS " + std::string(LOG_TABLE_NAME) + " ("
-                                   + std::string(FIELD_ID) + " INTEGER PRIMARY KEY AUTOINCREMENT, "
-                                   + std::string(FIELD_TIMESTAMP) + " DATETIME NOT NULL, "
-                                   + std::string(FIELD_LEVEL) + " TEXT NOT NULL, "
-                                   + std::string(FIELD_MESSAGE) + " TEXT NOT NULL, "
-                                   + std::string(FIELD_FUNCTION) + " TEXT NOT NULL, "
-                                   + std::string(FIELD_FILE) + " TEXT NOT NULL, "
-                                   + std::string(FIELD_LINE) + " INTEGER NOT NULL, "
-                                   + std::string(FIELD_THREAD_ID) + " TEXT NOT NULL);";
+    std::string createTableQuery;
+
+    switch(database.getDatabaseType())
+    {
+        case DataBaseType::SQLite:
+            createTableQuery = "CREATE TABLE IF NOT EXISTS " + std::string(LOG_TABLE_NAME) + " ("
+                               + std::string(FIELD_ID) + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+                               + std::string(FIELD_TIMESTAMP) + " DATETIME NOT NULL, "
+                               + std::string(FIELD_LEVEL) + " TEXT NOT NULL, "
+                               + std::string(FIELD_MESSAGE) + " TEXT NOT NULL, "
+                               + std::string(FIELD_FUNCTION) + " TEXT NOT NULL, "
+                               + std::string(FIELD_FILE) + " TEXT NOT NULL, "
+                               + std::string(FIELD_LINE) + " INTEGER NOT NULL, "
+                               + std::string(FIELD_THREAD_ID) + " TEXT NOT NULL);";
+            break;
+        case DataBaseType::MySQL:
+            createTableQuery = "CREATE TABLE IF NOT EXISTS " + std::string(LOG_TABLE_NAME) + " ("
+                               + std::string(FIELD_ID) + " INTEGER PRIMARY KEY AUTO_INCREMENT, "
+                               + std::string(FIELD_TIMESTAMP) + " DATETIME NOT NULL, "
+                               + std::string(FIELD_LEVEL) + " TEXT NOT NULL, "
+                               + std::string(FIELD_MESSAGE) + " TEXT NOT NULL, "
+                               + std::string(FIELD_FUNCTION) + " TEXT NOT NULL, "
+                               + std::string(FIELD_FILE) + " TEXT NOT NULL, "
+                               + std::string(FIELD_LINE) + " INTEGER NOT NULL, "
+                               + std::string(FIELD_THREAD_ID) + " TEXT NOT NULL);";
+            break;
+        default:
+            break;
+    }
 
     database.execute(createTableQuery);
 }
@@ -81,12 +101,55 @@ void LogWriter::createTable()
  */
 void LogWriter::createIndexes()
 {
-    std::string createIndexQuery =
-        "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_TIMESTAMP) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_TIMESTAMP + ");" + "\n"
-        + "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_LEVEL) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_LEVEL + ");" + "\n"
-        + "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_FILE) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_FILE + ");" + "\n"
-        + "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_THREAD_ID) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_THREAD_ID + ");" + "\n"
-        + "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_TIMESTAMP) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_TIMESTAMP + ");" + "\n"
-        + "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_FUNCTION) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_FUNCTION + ");";
-    database.execute(createIndexQuery);
+    std::vector<std::string> indexQueries;
+
+    switch(database.getDatabaseType())
+    {
+        case DataBaseType::SQLite:
+            indexQueries =
+            {
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_TIMESTAMP) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_TIMESTAMP + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_LEVEL) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_LEVEL + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_FILE) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_FILE + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_THREAD_ID) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_THREAD_ID + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_FUNCTION) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_FUNCTION + ");"
+            };
+            break;
+
+        case DataBaseType::MySQL:
+            indexQueries =
+            {
+                "ALTER TABLE " + std::string(LOG_TABLE_NAME) + " ADD INDEX idx_" + FIELD_TIMESTAMP + " (" + FIELD_TIMESTAMP + ");",
+                "ALTER TABLE " + std::string(LOG_TABLE_NAME) + " ADD INDEX idx_" + FIELD_LEVEL + " (" + FIELD_LEVEL + ");",
+                "ALTER TABLE " + std::string(LOG_TABLE_NAME) + " ADD INDEX idx_" + FIELD_FILE + " (" + FIELD_FILE + ");",
+                "ALTER TABLE " + std::string(LOG_TABLE_NAME) + " ADD INDEX idx_" + FIELD_THREAD_ID + " (" + FIELD_THREAD_ID + ");",
+                "ALTER TABLE " + std::string(LOG_TABLE_NAME) + " ADD INDEX idx_" + FIELD_FUNCTION + " (" + FIELD_FUNCTION + ");"
+            };
+            break;
+
+        default:
+            break;
+    }
+
+    for(const auto & query : indexQueries)
+    {
+        if(database.getDatabaseType() == DataBaseType::MySQL)
+        {
+            std::string checkQuery =
+                "SELECT COUNT(*) "
+                "FROM information_schema.statistics "
+                "WHERE table_schema = DATABASE() "
+                "  AND table_name = '" + std::string(LOG_TABLE_NAME) + "' "
+                "  AND index_name = 'idx_" + query.substr(query.find("idx_") + 4, query.find(" ") - query.find("idx_") - 4) + "';";
+
+            auto result = database.query(checkQuery);
+            if(!result.empty() && result[0].at("COUNT(*)") != "0")
+            {
+                // Index already exists, skip.
+                continue;
+            }
+        }
+
+        database.execute(query);
+    }
 }

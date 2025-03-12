@@ -23,11 +23,39 @@
 #include <filesystem>
 #include "sqlite_database.h"
 #include "mock_database.h"
+#include "mysql_database.h"
 #include "logger.h"
 
-#define TEST_DATABASE "test_logs.db"
+// Define only one!
+//#define TEST_DB_MOCK
+#define TEST_DB_SQLITE
+//#define TEST_DB_MYSQL
+// TODO: TEST_DB_POSTGRESQL?
+
+// Count defined TEST_DB_
+#define COUNT_DEFINED_VALUES      \
+    (defined(TEST_DB_MOCK) +      \
+     defined(TEST_DB_SQLITE) +    \
+     defined(TEST_DB_MYSQL))
+
+// FIXME: Broken, idk why.
+//#if COUNT_DEFINED_VALUES == 0
+//#error "At least one TEST_DB_ must be defined."
+//#endif
+
+#if COUNT_DEFINED_VALUES > 1
+    #error "Only one TEST_DB_ should be defined at a time."
+#endif
+
+#if defined(TEST_DB_MOCK)
+    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_MOCK
+#elif defined(TEST_DB_SQLITE)
+    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_SQLITE
+#elif defined(TEST_DB_MYSQL)
+    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_MYSQL
+#endif
+
 #define TEST_EXPORT_FILE "test_logs_export"
-#define TEST_ON_REAL_DB 1
 #define TEST_NUM_THREADS 4
 #define TEST_USE_SYNC_MODE 0
 #define TEST_PERFORMANCE_TEST_ENTRIES 100
@@ -35,21 +63,60 @@
 #define TEST_WAIT_UNTIL_EMPTY_MSEC 1000
 #define TEST_ONLY_FILE_NAME 0
 
+#define TEST_DATABASE_NAME "test_logs"
+#define TEST_DATABASE_TABLE "logs"
+#define TEST_DATABASE_HOST "localhost"
+#define TEST_DATABASE_PORT "3306"
+#define TEST_DATABASE_USER "test"
+#define TEST_DATABASE_PASS "test"
+#define TEST_DATABASE_FILE TEST_DATABASE_NAME ".db"
+
+auto TEST_DATABASE_TYPE = [ & ]()
+{
+    return DataBaseHelper::stringToDatabaseType(TEST_DATABASE_TYPE_STR);
+}
+();
+
 using namespace LogHelper;
 using namespace LogConfig;
-
-// Use a real database or mock
-#if TEST_ON_REAL_DB == 1
-    auto database = std::make_unique<SQLiteDatabase>(TEST_DATABASE);
-#else
-    auto database = std::make_unique<MockDatabase>();
-#endif // TEST_ON_REAL_DB
 
 // Minimum log level
 constexpr LogLevel TEST_LOG_LEVEL = LogLevel::Trace;
 
-// Config
-const Config config{ TEST_USE_SYNC_MODE, TEST_NUM_THREADS, TEST_ONLY_FILE_NAME, TEST_LOG_LEVEL };
+auto config = [ & ]()
+{
+    Config cfg;
+    cfg.syncMode = TEST_USE_SYNC_MODE;
+    cfg.numThreads = TEST_NUM_THREADS;
+    cfg.onlyFileNames = TEST_ONLY_FILE_NAME;
+    cfg.minLogLevel = TEST_LOG_LEVEL;
+    cfg.databaseName = TEST_DATABASE_NAME;
+    cfg.databaseTable = TEST_DATABASE_TABLE;
+    cfg.databaseHost = TEST_DATABASE_HOST;
+    cfg.databasePort = std::stoi(TEST_DATABASE_PORT);
+    cfg.databaseUser = TEST_DATABASE_USER;
+    cfg.databasePass = TEST_DATABASE_PASS;
+    cfg.databaseType = TEST_DATABASE_TYPE;
+    return cfg;
+}
+();
+
+auto connString = [ & ]()
+{
+    return LogConfig::configToConnectionString(config);
+}
+();
+
+// Use a real database or mock
+#if defined(TEST_DB_MOCK)
+    auto database = std::make_unique<MockDatabase>();
+#elif defined(TEST_DB_SQLITE)
+    auto database = std::make_unique<SQLiteDatabase>(TEST_DATABASE_FILE);
+#elif defined(TEST_DB_MYSQL)
+    auto database = std::make_unique<MySQLDatabase>(connString);
+#endif
+
+
 
 Logger logger(std::move(database), config);
 
@@ -530,7 +597,7 @@ void testErrorHandling()
 
     //std::unique_ptr<IDatabase> database;
 
-#if TEST_ON_REAL_DB == 0
+#if defined(TEST_DB_MOCK)
     // Use MockDatabase
     auto mockDb = std::make_unique<MockDatabase>();
     // Override executeWithParams to simulate an error
@@ -539,7 +606,7 @@ void testErrorHandling()
         return false; // Simulate an error
     };
     database = std::move(mockDb);
-#else
+#elif defined(TEST_DB_SQLITE)
     // Use a real SQLite database
     const std::string dbPath = "test_error_handling.db";
 
@@ -559,6 +626,8 @@ void testErrorHandling()
         // Ensure the error is logged
         std::cerr << "Simulated error in real database: Query failed!" << std::endl;
     }
+#elif defined(TEST_DB_MYSQL)
+    //TODO:
 #endif
 
     // Create a logger with the selected database
@@ -598,7 +667,7 @@ void testErrorHandling()
     std::cout << "testErrorHandling passed!" << std::endl;
 
     // Cleanup (if a real database was used)
-    if(TEST_ON_REAL_DB)
+#if defined(TEST_DB_SQLITE)
     {
         const std::string dbPath = "test_error_handling.db";
         if(std::filesystem::exists(dbPath))
@@ -606,6 +675,9 @@ void testErrorHandling()
             std::filesystem::remove(dbPath);
         }
     }
+#elif defined(TEST_DB_MYSQL)
+    // TODO: DROP DB
+#endif
 }
 
 /**
@@ -613,7 +685,11 @@ void testErrorHandling()
  */
 void removeTestFiles()
 {
-    const auto dbFilePath = std::filesystem::absolute(TEST_DATABASE);
+#if defined(TEST_DB_MYSQL)
+    // TODO: DROP DB
+#endif
+
+    const auto dbFilePath = std::filesystem::absolute(TEST_DATABASE_FILE);
 
     std::cout << "Remove test files..." << std::endl;
 
@@ -712,6 +788,13 @@ void testConfigSaveLoad()
     assert(loadedConfig.numThreads == config.numThreads);
     assert(loadedConfig.onlyFileNames == config.onlyFileNames);
     assert(loadedConfig.minLogLevel == config.minLogLevel);
+    assert(loadedConfig.databaseName == config.databaseName);
+    assert(loadedConfig.databaseTable == config.databaseTable);
+    assert(loadedConfig.databaseHost == config.databaseHost);
+    assert(loadedConfig.databasePort == config.databasePort);
+    assert(loadedConfig.databaseUser == config.databaseUser);
+    assert(loadedConfig.databasePass == config.databasePass);
+    assert(loadedConfig.databaseType == config.databaseType);
 
     std::cout << "testConfigSaveLoad passed!" << std::endl;
 }
@@ -728,12 +811,16 @@ int main()
 {
     std::cout << SQLOGGER_PROJECT_NAME << " v." << SQLOGGER_VERSION_FULL << std::endl;
 
-#if TEST_ON_REAL_DB == 1
-    std::cout << "Test on real database" << std::endl;
-    std::cout << TEST_DATABASE << std::endl;
-#else
+#if defined(TEST_DB_MOCK)
     std::cout << "Test on mock data" << std::endl;
+#elif defined(TEST_DB_SQLITE)
+    std::cout << "Test on SQLite database" << std::endl;
+    std::cout << TEST_DATABASE_FILE << std::endl;
+#elif defined(TEST_DB_MYSQL)
+    std::cout << "Test on MySQL database" << std::endl;
+    std::cout << connString << std::endl;
 #endif
+
 
 #if TEST_USE_SYNC_MODE == 1
     std::cout << "Sync Mode: ON" << std::endl;

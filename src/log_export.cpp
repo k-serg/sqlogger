@@ -158,57 +158,16 @@ void LogExport::exportToYAML(const std::string& filePath, const LogEntryList& en
     {
         outFile << "-";
         outFile << " " << EXP_FIELD_ID << ": " << entry.id << std::endl;
-        outFile << "  " << EXP_FIELD_TIMESTAMP << ": " << "\"" << escapeJsonString(entry.timestamp) << "\"" << std::endl;
-        outFile << "  " << EXP_FIELD_LEVEL << ": " << "\"" << escapeJsonString(entry.level) << "\"" << std::endl;
-        outFile << "  " << EXP_FIELD_MESSAGE << ": " << "\"" << escapeJsonString(entry.message) << "\"" << std::endl;
-        outFile << "  " << EXP_FIELD_FUNCTION << ": " << "\"" << escapeJsonString(entry.function) << "\"" << std::endl;
-        outFile << "  " << EXP_FIELD_FILE << ": " << "\"" << escapeJsonString(entry.file) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_TIMESTAMP << ": " << "\"" << escapeYamlString(entry.timestamp) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_LEVEL << ": " << "\"" << escapeYamlString(entry.level) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_MESSAGE << ": " << "\"" << escapeYamlString(entry.message) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_FUNCTION << ": " << "\"" << escapeYamlString(entry.function) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_FILE << ": " << "\"" << escapeYamlString(entry.file) << "\"" << std::endl;
         outFile << "  " << EXP_FIELD_LINE << ": " << entry.line << std::endl;
-        outFile << "  " << EXP_FIELD_THREAD_ID << ": " << "\"" << escapeJsonString(entry.threadId) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_THREAD_ID << ": " << "\"" << escapeYamlString(entry.threadId) << "\"" << std::endl;
     }
 
     outFile.close();
-}
-
-/**
- * @brief Escapes special characters in a JSON string.
- * @param str The string to escape.
- * @return The escaped string.
- */
-std::string LogExport::escapeJsonString(const std::string& str)
-{
-    std::string result;
-    for(char ch : str)
-    {
-        switch(ch)
-        {
-            case '\\':
-                result += "\\\\";
-                break;
-            case '\"':
-                result += "\\\"";
-                break;
-            case '\b':
-                result += "\\b";
-                break;
-            case '\f':
-                result += "\\f";
-                break;
-            case '\n':
-                result += "\\n";
-                break;
-            case '\r':
-                result += "\\r";
-                break;
-            case '\t':
-                result += "\\t";
-                break;
-            default:
-                result += ch;
-                break;
-        }
-    }
-    return result;
 }
 
 /**
@@ -245,7 +204,91 @@ void LogExport::exportTo(const std::string& filePath, const Format& format, cons
             exportToYAML(filePath, entryList);
             break;
         default:
-            throw std::runtime_error(ERR_MG_UNKNOWN_EXPORT_FMT);
+            throw std::runtime_error(ERR_MSG_UNKNOWN_EXPORT_FMT);
             break;
     }
+}
+
+/**
+ * @brief Escapes special characters in a JSON string.
+ * @param str The string to escape.
+ * @return The escaped string.
+ */
+std::string LogExport::escapeJsonString(const std::string& str)
+{
+    std::string result;
+    for(size_t i = 0; i < str.size(); ++i)
+    {
+        char ch = str[i];
+
+        switch(ch)
+        {
+            case '\\':
+                result += "\\\\";
+                break;
+            case '\"':
+                result += "\\\"";
+                break;
+            case '\b':
+                result += "\\b";
+                break;
+            case '\f':
+                result += "\\f";
+                break;
+            case '\n':
+                result += "\\n";
+                break;
+            case '\r':
+                result += "\\r";
+                break;
+            case '\t':
+                result += "\\t";
+                break;
+            default:
+                result += ch;
+                break;
+        }
+    }
+    return result;
+}
+
+/**
+ * @brief Escapes special characters in a YAML string.
+ * @param str The string to escape.
+ * @return The escaped string.
+ */
+std::string LogExport::escapeYamlString(const std::string& str)
+{
+    std::string result;
+    for(char ch : str)
+    {
+        switch(ch)
+        {
+            case '\\':
+                result += "\\\\";
+                break;
+            case '\"':
+                result += "\\\"";
+                break;
+            case '\n':
+                result += "\\n";
+                break;
+            case '\t':
+                result += "\\t";
+                break;
+            case '\r':
+                result += "\\r";
+                break;
+            case '\b':
+                result += "\\b";
+                break;
+            case '\f':
+                result += "\\f";
+                break;
+            default:
+                result += ch;
+                break;
+        }
+    }
+    return result;
 }
