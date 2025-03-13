@@ -196,6 +196,10 @@ if (BUILD_TEST)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 
+    if (USE_MYSQL)
+        target_compile_definitions(${TEST_NAME} PRIVATE USE_MYSQL)
+    endif()
+
     # Enable testing and add a test target
     enable_testing()
     add_test(NAME logger_test COMMAND ${TEST_NAME})

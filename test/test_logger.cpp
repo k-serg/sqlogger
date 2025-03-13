@@ -23,10 +23,15 @@
 #include <filesystem>
 #include "sqlite_database.h"
 #include "mock_database.h"
-#include "mysql_database.h"
 #include "logger.h"
 
-// Define only one!
+// Set "USE_MYSQL" option to "ON" in CMake parameters, to enable MySQL support.
+#ifdef USE_MYSQL
+    #pragma message("MySQL support enabled.")
+    #include "mysql_database.h"
+#endif // USE_MYSQL
+
+// Define (uncomment) only one!
 //#define TEST_DB_MOCK
 #define TEST_DB_SQLITE
 //#define TEST_DB_MYSQL
