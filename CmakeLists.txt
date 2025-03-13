@@ -27,7 +27,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 
 # Define CMake options
-option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(USE_SYSTEM_SQLITE "Use system SQLite" OFF)
 option(BUILD_TEST "Build test application" ON)
 option(USE_MYSQL "Enable MySQL support" OFF)
@@ -55,11 +55,19 @@ if (USE_MYSQL)
     if (WIN32)
         # Paths for Windows
         set(MYSQL_INCLUDE_DIR "C:/Program Files/MySQL/MySQL Server 8.0/include")
-        set(MYSQL_LIBRARY "C:/Program Files/MySQL/MySQL Server 8.0/lib/libmysql.lib")
+        if (BUILD_SHARED_LIBS)
+            set(MYSQL_LIBRARY "C:/Program Files/MySQL/MySQL Server 8.0/lib/libmysql.lib")
+        else()
+            set(MYSQL_LIBRARY "C:/Program Files/MySQL/MySQL Server 8.0/lib/mysqlclient.lib")
+        endif()
     else()
         # Paths for Linux
         set(MYSQL_INCLUDE_DIR "/usr/include/mysql")
-        set(MYSQL_LIBRARY "/usr/lib/x86_64-linux-gnu/libmysqlclient.so")
+        if (BUILD_SHARED_LIBS)
+            set(MYSQL_LIBRARY "/usr/lib/x86_64-linux-gnu/libmysqlclient.so")
+        else()
+            set(MYSQL_LIBRARY "/usr/lib/x86_64-linux-gnu/libmysqlclient.a")
+        endif()
     endif()
 
     # Check if MySQL headers and library exist
