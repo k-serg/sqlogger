@@ -54,7 +54,7 @@ endif()
 # Find and configure MySQL library (if USE_MYSQL is enabled)
 if (USE_MYSQL)
     # Platform-specific paths for MySQL
-    if (WIN32)
+    if (WIN32 AND MSVC)
         # Paths for Windows
         set(MYSQL_INCLUDE_DIR "C:/Program Files/MySQL/MySQL Server 8.0/include")
         if (BUILD_SHARED_LIBS)
@@ -62,7 +62,7 @@ if (USE_MYSQL)
         else()
             set(MYSQL_LIBRARY "C:/Program Files/MySQL/MySQL Server 8.0/lib/mysqlclient.lib")
         endif()
-    else()
+    elseif(UNIX AND NOT APPLE)
         # Paths for Linux
         set(MYSQL_INCLUDE_DIR "/usr/include/mysql")
         if (BUILD_SHARED_LIBS)
@@ -70,6 +70,8 @@ if (USE_MYSQL)
         else()
             set(MYSQL_LIBRARY "/usr/lib/x86_64-linux-gnu/libmysqlclient.a")
         endif()
+    else()
+         message(FATAL_ERROR "MySQL build for this platform not supported jet. Set USE_MYSQL option to OFF.")
     endif()
 
     # Check if MySQL headers and library exist
