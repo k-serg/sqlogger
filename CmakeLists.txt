@@ -12,6 +12,7 @@ set(SQLOGGER_VERSION_MAJOR 1)
 set(SQLOGGER_VERSION_MINOR 2)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
+set(SQLOGGER_DESCRIPTION "SQLogger is a lightweight logging library that uses SQLite as a backend.")
 
 # Configure the version header file
 configure_file("sqlogger_config.h.in" "sqlogger_config.h" @ONLY)
@@ -31,6 +32,7 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(USE_SYSTEM_SQLITE "Use system SQLite" OFF)
 option(BUILD_TEST "Build test application" ON)
 option(USE_MYSQL "Enable MySQL support" OFF)
+option(BUILD_DOC "Build documentation using Doxygen" OFF)
 
 # Configure symbol export for Windows
 if (WIN32)
@@ -214,4 +216,39 @@ if (BUILD_TEST)
 
     # Install the test executable
     install(TARGETS ${TEST_NAME} RUNTIME DESTINATION bin)
+endif()
+
+# Configure Doxygen documentation generation if BUILD_DOC is enabled
+if (BUILD_DOC)
+    # Find Doxygen
+    find_package(Doxygen REQUIRED)
+
+    if (DOXYGEN_FOUND)
+        # Set Doxygen configuration file
+        set(DOXYGEN_INPUT_DIR "${CMAKE_SOURCE_DIR}/include")
+        set(DOXYGEN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/docs")
+        set(DOXYGEN_CONFIG_FILE "${CMAKE_BINARY_DIR}/doxyfile")
+
+        # Configure Doxyfile
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/doxyfile.in"
+            "${DOXYGEN_CONFIG_FILE}"
+            @ONLY
+        )
+
+        # Add custom target for generating documentation
+        add_custom_target(doc ALL
+            COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_CONFIG_FILE}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM
+        )
+
+        # Install documentation
+        install(DIRECTORY ${DOXYGEN_OUTPUT_DIR} DESTINATION docs)
+        message(STATUS "Doxygen found: ${DOXYGEN_EXECUTABLE}, Documentation will be generated into: ${DOXYGEN_OUTPUT_DIR}")
+        add_dependencies(${PROJECT_NAME} doc)
+    else()
+        message(WARNING "Doxygen not found, documentation will not be generated.")
+    endif()
 endif()

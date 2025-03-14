@@ -71,17 +71,17 @@ bool SQLiteDatabase::createDatabaseIfNotExists(const std::string& dbPath)
 
 /**
  * @brief Connects to the SQLite database.
- * @param connString The path to the SQLite database file.
+ * @param path The path to the SQLite database file.
  * @return True if the connection was successful, false otherwise.
  */
-bool SQLiteDatabase::connect(const std::string& connectionString)
+bool SQLiteDatabase::connect(const std::string& path)
 {
     if(db)
     {
         sqlite3_close(db);
     }
 
-    if(sqlite3_open(connectionString.c_str(), & db) != SQLITE_OK)
+    if(sqlite3_open(path.c_str(), & db) != SQLITE_OK)
     {
         return false;
     }

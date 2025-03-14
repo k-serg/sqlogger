@@ -51,10 +51,10 @@ class SQLiteDatabase : public IDatabase
 
         /**
          * @brief Connects to the SQLite database.
-         * @param connString The path to the SQLite database file.
+         * @param path The path to the SQLite database file.
          * @return True if the connection was successful, false otherwise.
          */
-        bool connect(const std::string& connectionString) override;
+        bool connect(const std::string& path) override;
 
         /**
          * @brief Disconnects from the SQLite database.
