@@ -98,7 +98,11 @@ class LOGGER_API Logger
          * @param database The database interface to use for logging.
          * @param config LogConfig::Config struct that will be applied.
          */
-        Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config = {});
+        Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config = {}
+#ifdef USE_SOURCE_INFO
+               , std::optional<SourceInfo> sourceInfo = std::nullopt
+#endif
+              );
 
         /**
          * @brief Destructor for Logger. Stops all threads and releases resources.
@@ -120,7 +124,11 @@ class LOGGER_API Logger
         /**
          * @brief Clears all log entries from the database.
          */
-        void clearLogs();
+        void clearLogs(
+#ifdef USE_SOURCE_INFO
+            const bool clearSources = false
+#endif
+        );
 
         /**
          * @brief Retrieves statistics about the logger.
@@ -200,6 +208,43 @@ class LOGGER_API Logger
         */
         static void exportTo(const std::string& filePath, const LogExport::Format& format, const LogEntryList& entryList, const std::string& delimiter = ENTRY_DELIMITER, bool name = true);
 
+#ifdef USE_SOURCE_INFO
+        /**
+        * @brief Adds a new source to the database.
+        * @param name The name of the source.
+        * @param uuid The UUID of the source.
+        * @return The ID of the newly added source, or SOURCE_NOT_FOUND if the operation failed.
+        */
+        int addSource(const std::string& name, const std::string& uuid);
+
+        /**
+         * @brief Retrieves a source by its source ID.
+         * @param sourceId The source ID of the source to retrieve.
+         * @return An optional containing the source information if found, or std::nullopt otherwise.
+         */
+        std::optional<SourceInfo> getSourceById(const int sourceId);
+
+        /**
+         * @brief Retrieves a source by its UUID.
+         * @param uuid The UUID of the source to retrieve.
+         * @return An optional containing the source information if found, or std::nullopt otherwise.
+         */
+        std::optional<SourceInfo> getSourceByUuid(const std::string& uuid);
+
+        /**
+         * @brief Retrieves a source by its name.
+         * @param name The name of the source to retrieve.
+         * @return An optional containing the source information if found, or std::nullopt otherwise.
+         */
+        std::optional<SourceInfo> getSourceByName(const std::string& name);
+
+        /**
+        * @brief Retrieves all sources from the database.
+        * @return A vector containing all sources.
+        */
+        std::vector<SourceInfo> getAllSources();
+#endif
+
     private:
         /**
          * @struct LogTask
@@ -214,6 +259,9 @@ class LOGGER_API Logger
             int line; /**< The line number where the log task was created. */
             std::string threadId; /**< The ID of the thread that created the log task. */
             std::chrono::system_clock::time_point timestamp; /**< The timestamp of the log task. */
+#ifdef USE_SOURCE_INFO
+            int sourceId;  /**< The source ID. */
+#endif
         };
 
         friend class LogMessage;
@@ -264,6 +312,11 @@ class LOGGER_API Logger
         LogLevel minLevel; /**< Minimum log level for messages to be logged. */
         bool syncMode; /**< Whether the logger is in synchronous mode. */
         bool onlyFileNames; /**< Log only filenames or full path to the file. */
+
+#ifdef USE_SOURCE_INFO
+        int sourceId; /**< The source ID. */
+        std::optional<SourceInfo> sourceInfo; /**< The source info. */
+#endif
 };
 
 /**

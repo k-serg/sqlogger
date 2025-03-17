@@ -44,6 +44,35 @@ class LogReader
          */
         LogEntryList getLogsByFilters(const std::vector<Filter> & filters);
 
+#ifdef USE_SOURCE_INFO
+        /**
+         * @brief Retrieves a source by its source ID.
+         * @param sourceId The source ID of the source to retrieve.
+         * @return An optional containing the source information if found, or std::nullopt otherwise.
+         */
+        std::optional<SourceInfo> getSourceById(const int sourceId);
+
+        /**
+         * @brief Retrieves a source by its UUID.
+         * @param uuid The UUID of the source to retrieve.
+         * @return An optional containing the source information if found, or std::nullopt otherwise.
+         */
+        std::optional<SourceInfo> getSourceByUuid(const std::string& uuid);
+
+        /**
+         * @brief Retrieves a source by its name.
+         * @param name The name of the source to retrieve.
+         * @return An optional containing the source information if found, or std::nullopt otherwise.
+         */
+        std::optional<SourceInfo> getSourceByName(const std::string& name);
+
+        /**
+        * @brief Retrieves all sources from the database.
+        * @return A vector containing all sources.
+        */
+        std::vector<SourceInfo> getAllSources();
+#endif
+
     private:
         IDatabase& database; /**< The database interface used for reading logs. */
 };

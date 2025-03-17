@@ -31,17 +31,39 @@
 #include <algorithm>
 #include "log_strings.h"
 
+#ifdef USE_SOURCE_INFO
+    #include <uuid.h>
+#endif
+
+#ifdef USE_SOURCE_INFO
+    #define SOURCE_NOT_FOUND -1
+#endif
+
 // Define constants for table field names
 #define LOG_DATABASE_NAME "logs_db"
 #define LOG_TABLE_NAME "logs"
-#define FIELD_ID "id"
-#define FIELD_TIMESTAMP "timestamp"
-#define FIELD_LEVEL "level"
-#define FIELD_MESSAGE "message"
-#define FIELD_FUNCTION "func"
-#define FIELD_FILE "file"
-#define FIELD_LINE "line"
-#define FIELD_THREAD_ID "thread_id"
+#define FIELD_LOG_ID "id"
+#define FIELD_LOG_TIMESTAMP "timestamp"
+#define FIELD_LOG_LEVEL "level"
+#define FIELD_LOG_MESSAGE "message"
+#define FIELD_LOG_FUNCTION "func"
+#define FIELD_LOG_FILE "file"
+#define FIELD_LOG_LINE "line"
+#define FIELD_LOG_THREAD_ID "thread_id"
+#ifdef USE_SOURCE_INFO
+    #define FIELD_LOG_SOURCES_ID "source_id"
+#endif
+
+#ifdef USE_SOURCE_INFO
+    #define SOURCES_TABLE_NAME "sources"
+    #define FIELD_SOURCES_ID "id"
+    #define FIELD_SOURCES_UUID "uuid"
+    #define FIELD_SOURCES_NAME "name"
+#endif
+
+#ifdef USE_SOURCE_INFO
+    #define SOURCE_DEFAULT_NAME "default_source"
+#endif
 
 // Define constants for table field file export names
 #define EXP_FIELD_ID "ID"
@@ -66,6 +88,21 @@
 
 constexpr char* ALLOWED_FILTER_OP[] = { "=", ">", "<", ">=", "<=", "!=" }; /**< List of allowed operators for Filter structure. */
 
+#ifdef USE_SOURCE_INFO
+/**
+ * @brief Represents information about a logging source.
+ *
+ * This structure holds details about a source that generates log entries,
+ * including its unique identifier (ID), UUID, and name.
+ */
+struct SourceInfo
+{
+    int sourceId;        /**< The unique identifier (ID) of the source. */
+    std::string uuid;    /**< The universally unique identifier (UUID) of the source. */
+    std::string name;    /**< The name of the source. */
+};
+#endif
+
 /**
  * @enum LogLevel
  * @brief Enumeration representing the severity level of a log entry.
@@ -83,6 +120,21 @@ enum class LogLevel
 
 namespace LogHelper
 {
+
+#ifdef USE_SOURCE_INFO
+
+    /**
+     * @brief Generates a UUID.
+     * @return A string representing the generated UUID.
+     */
+    static std::string generateUUID()
+    {
+        const uuids::uuid uuid = uuids::uuid_system_generator{}();
+        return uuids::to_string(uuid);
+    };
+
+#endif
+
     /**
      * @brief Transform string into upper case. ASCII-only.
      * @param input Source string.
@@ -182,6 +234,9 @@ struct Filter
         Function,
         ThreadId,
         TimestampRange
+#ifdef USE_SOURCE_INFO
+        , SourceId
+#endif
     };
 
     Type type; /**< The type to filter on. */
@@ -208,11 +263,14 @@ struct Filter
     */
     Type fieldToType() const
     {
-        if(field == FIELD_LEVEL) return Type::Level;
-        if(field == FIELD_FILE) return Type::File;
-        if(field == FIELD_FUNCTION) return Type::Function;
-        if(field == FIELD_THREAD_ID) return Type::ThreadId;
-        if(field == FIELD_TIMESTAMP) return Type::TimestampRange;
+        if(field == FIELD_LOG_LEVEL) return Type::Level;
+        if(field == FIELD_LOG_FILE) return Type::File;
+        if(field == FIELD_LOG_FUNCTION) return Type::Function;
+        if(field == FIELD_LOG_THREAD_ID) return Type::ThreadId;
+        if(field == FIELD_LOG_TIMESTAMP) return Type::TimestampRange;
+#ifdef USE_SOURCE_INFO
+        if(field == FIELD_LOG_SOURCES_ID) return Type::SourceId;
+#endif
         return Type::Unknown;
     };
 
@@ -225,15 +283,19 @@ struct Filter
         switch(type)
         {
             case Type::Level:
-                return FIELD_LEVEL;
+                return FIELD_LOG_LEVEL;
             case Type::File:
-                return FIELD_FILE;
+                return FIELD_LOG_FILE;
             case Type::Function:
-                return FIELD_FUNCTION;
+                return FIELD_LOG_FUNCTION;
             case Type::ThreadId:
-                return FIELD_THREAD_ID;
+                return FIELD_LOG_THREAD_ID;
             case Type::TimestampRange:
-                return FIELD_TIMESTAMP;
+                return FIELD_LOG_TIMESTAMP;
+#ifdef USE_SOURCE_INFO
+            case Type::SourceId:
+                return FIELD_LOG_SOURCES_ID;
+#endif
             default:
                 return "Unknown";
         }
@@ -248,6 +310,9 @@ struct Filter
 struct LogEntry
 {
     int id; /**< The unique identifier of the log entry. */
+#ifdef USE_SOURCE_INFO
+    int sourceId;  /**< The SourceID. */
+#endif
     std::string timestamp; /**< The timestamp of the log entry. */
     std::string level; /**< The severity level of the log entry. */
     std::string message; /**< The message of the log entry. */
@@ -255,6 +320,10 @@ struct LogEntry
     std::string file; /**< The file where the log entry was created. */
     int line; /**< The line number where the log entry was created. */
     std::string threadId; /**< The ID of the thread that created the log entry. */
+#ifdef USE_SOURCE_INFO
+    std::string uuid;  /**< The UUID. */
+    std::string sourceName;  /**< The name of the source. */
+#endif
 
     /**
      * @brief Converts the log entry to a string.

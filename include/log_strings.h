@@ -39,4 +39,8 @@
 #define ERR_MSG_DROP_NOT_ALLOWED "Database drop is not allowed"
 #define ERR_MSG_DB_NOT_CONNECTED "Database is not connected"
 
+#ifdef USE_SOURCE_INFO
+    #define ERR_MSG_SOURCE_NOT_FOUND "Source info not found for sourceId: "
+#endif
+
 #endif // !LOG_STRINGS_H

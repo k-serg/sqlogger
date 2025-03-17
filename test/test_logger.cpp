@@ -25,6 +25,11 @@
 #include "mock_database.h"
 #include "logger.h"
 
+#ifdef USE_SOURCE_INFO
+    #pragma message("SOURCE INFO support enabled.")
+    #include <uuid.h>
+#endif
+
 // Set "USE_MYSQL" option to "ON" in CMake parameters, to enable MySQL support.
 #ifdef USE_MYSQL
     #pragma message("MySQL support enabled.")
@@ -76,6 +81,26 @@
 #define TEST_DATABASE_PASS "test"
 #define TEST_DATABASE_FILE TEST_DATABASE_NAME ".db"
 
+#ifdef USE_SOURCE_INFO
+#define TEST_SOURCE_NAME "test_source"
+
+auto TEST_SOURCE_UUID = [ & ]()
+{
+    return std::string("4472ab03-4184-44ab-921c-751a702c42ca");
+    //return LogHelper::generateUUID();
+}
+();
+
+auto TEST_SOURCE_INFO = [ & ]()
+{
+    SourceInfo sourceInfo;
+    sourceInfo.name = TEST_SOURCE_NAME;
+    sourceInfo.uuid = TEST_SOURCE_UUID;
+    return sourceInfo;
+}
+();
+#endif
+
 auto TEST_DATABASE_TYPE = [ & ]()
 {
     return DataBaseHelper::stringToDatabaseType(TEST_DATABASE_TYPE_STR);
@@ -88,7 +113,7 @@ using namespace LogConfig;
 // Minimum log level
 constexpr LogLevel TEST_LOG_LEVEL = LogLevel::Trace;
 
-auto config = [ & ]()
+auto TEST_CONFIG = [ & ]()
 {
     Config cfg;
     cfg.syncMode = TEST_USE_SYNC_MODE;
@@ -106,9 +131,9 @@ auto config = [ & ]()
 }
 ();
 
-auto connString = [ & ]()
+auto TEST_CONN_STRING = [ & ]()
 {
-    return LogConfig::configToConnectionString(config);
+    return LogConfig::configToConnectionString(TEST_CONFIG);
 }
 ();
 
@@ -118,12 +143,28 @@ auto connString = [ & ]()
 #elif defined(TEST_DB_SQLITE)
     auto database = std::make_unique<SQLiteDatabase>(TEST_DATABASE_FILE);
 #elif defined(TEST_DB_MYSQL)
-    auto database = std::make_unique<MySQLDatabase>(connString);
+    auto database = std::make_unique<MySQLDatabase>(TEST_CONN_STRING);
 #endif
 
+Logger logger(std::move(database), TEST_CONFIG
+#ifdef USE_SOURCE_INFO
+    , TEST_SOURCE_INFO
+#endif
+             );
 
 
-Logger logger(std::move(database), config);
+void clearLogs(
+#ifdef USE_SOURCE_INFO
+    const bool clearSources = true
+#endif
+)
+{
+    logger.clearLogs(
+#ifdef USE_SOURCE_INFO
+              clearSources
+#endif
+          );
+}
 
 /**
  * @brief Load config from file.
@@ -196,9 +237,9 @@ void testBasicFunctionality()
     bool infoFound = false, warningFound = false, errorFound = false;
     for(const auto & log : allLogs)
     {
-        if(log.level == "INFO" && log.message == infoMsg) infoFound = true;
-        if(log.level == "WARNING" && log.message == warningMsg) warningFound = true;
-        if(log.level == "ERROR" && log.message == errorMsg) errorFound = true;
+        if(log.level == LOG_LEVEL_INFO && log.message == infoMsg) infoFound = true;
+        if(log.level == LOG_LEVEL_WARNING && log.message == warningMsg) warningFound = true;
+        if(log.level == LOG_LEVEL_ERROR && log.message == errorMsg) errorFound = true;
     }
     assert(infoFound && warningFound && errorFound);
 
@@ -787,21 +828,118 @@ void testPerformance()
 */
 void testConfigSaveLoad()
 {
-    saveConfig(config, LOG_INI_FILENAME);
+    saveConfig(TEST_CONFIG, LOG_INI_FILENAME);
     auto loadedConfig = loadConfig(LOG_INI_FILENAME);
-    assert(loadedConfig.syncMode == config.syncMode);
-    assert(loadedConfig.numThreads == config.numThreads);
-    assert(loadedConfig.onlyFileNames == config.onlyFileNames);
-    assert(loadedConfig.minLogLevel == config.minLogLevel);
-    assert(loadedConfig.databaseName == config.databaseName);
-    assert(loadedConfig.databaseTable == config.databaseTable);
-    assert(loadedConfig.databaseHost == config.databaseHost);
-    assert(loadedConfig.databasePort == config.databasePort);
-    assert(loadedConfig.databaseUser == config.databaseUser);
-    assert(loadedConfig.databasePass == config.databasePass);
-    assert(loadedConfig.databaseType == config.databaseType);
+    assert(loadedConfig.syncMode == TEST_CONFIG.syncMode);
+    assert(loadedConfig.numThreads == TEST_CONFIG.numThreads);
+    assert(loadedConfig.onlyFileNames == TEST_CONFIG.onlyFileNames);
+    assert(loadedConfig.minLogLevel == TEST_CONFIG.minLogLevel);
+    assert(loadedConfig.databaseName == TEST_CONFIG.databaseName);
+    assert(loadedConfig.databaseTable == TEST_CONFIG.databaseTable);
+    assert(loadedConfig.databaseHost == TEST_CONFIG.databaseHost);
+    assert(loadedConfig.databasePort == TEST_CONFIG.databasePort);
+    assert(loadedConfig.databaseUser == TEST_CONFIG.databaseUser);
+    assert(loadedConfig.databasePass == TEST_CONFIG.databasePass);
+    assert(loadedConfig.databaseType == TEST_CONFIG.databaseType);
 
     std::cout << "testConfigSaveLoad passed!" << std::endl;
+}
+
+/**
+ * @brief Test logging with SourceInfo and filtering by source.
+ */
+void testSourceInfo()
+{
+#ifdef USE_SOURCE_INFO
+    // Clear the database before starting the test
+    logger.clearLogs(true);
+
+    // Add the source to the database and get its sourceId
+    // Use TEST_SOURCE_INFO, which is already defined
+    int sourceId = logger.addSource(TEST_SOURCE_INFO.name, TEST_SOURCE_INFO.uuid);
+    assert(sourceId != SOURCE_NOT_FOUND); // Ensure the source was added successfully
+
+    // Use TEST_SOURCE_INFO, which is already defined
+    const std::string msg = "This is a message from " + TEST_SOURCE_INFO.name;
+
+    // Log a message with this source
+    LOG_INFO(logger) << msg;
+
+    // Wait until all logs are written
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
+    {
+        std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
+    }
+
+    // Retrieve logs for the specific source
+    Filter sourceFilter;
+    sourceFilter.type = Filter::Type::SourceId;
+    sourceFilter.field = sourceFilter.typeToField();
+    sourceFilter.op = "=";
+    sourceFilter.value = std::to_string(sourceId); // Use the sourceId obtained when adding the source
+
+    LogEntryList sourceLogs = logger.getLogsByFilters({ sourceFilter });
+
+    printLogs(sourceLogs);
+
+    assert(sourceLogs.size() == 1); // Ensure only one log entry is found
+    assert(sourceLogs[0].message == msg); // Ensure the message matches
+
+    std::cout << "testSourceInfo passed!" << std::endl;
+#else
+    std::cout << "testSourceInfo skipped (USE_SOURCE_INFO not defined)." << std::endl;
+#endif
+}
+
+/**
+ * @brief Test retrieving all sources.
+ */
+void testGetAllSources()
+{
+#ifdef USE_SOURCE_INFO
+    // Clear the database before starting the test
+    logger.clearLogs(true);
+
+    // Add the source to the database and get its sourceId
+    // Use TEST_SOURCE_INFO, which is already defined
+    int sourceId = logger.addSource(TEST_SOURCE_INFO.name, TEST_SOURCE_INFO.uuid);
+    assert(sourceId != SOURCE_NOT_FOUND); // Ensure the source was added successfully
+
+    auto allSources = logger.getAllSources();
+    assert(allSources.size() == 1); // Ensure only one source is found
+    assert(allSources[0].uuid == TEST_SOURCE_INFO.uuid); // Ensure the UUID matches
+    assert(allSources[0].name == TEST_SOURCE_INFO.name); // Ensure the name matches
+
+    std::cout << "testGetAllSources passed!" << std::endl;
+#else
+    std::cout << "testGetAllSources skipped (USE_SOURCE_INFO not defined)." << std::endl;
+#endif
+}
+
+/**
+ * @brief Test retrieving source information by UUID.
+ */
+void testGetSourceByUuid()
+{
+#ifdef USE_SOURCE_INFO
+    // Clear the database before starting the test
+    logger.clearLogs(true);
+
+    // Add the source to the database and get its sourceId
+    // Use TEST_SOURCE_INFO, which is already defined
+    int sourceId = logger.addSource(TEST_SOURCE_INFO.name, TEST_SOURCE_INFO.uuid);
+    assert(sourceId != SOURCE_NOT_FOUND); // Ensure the source was added successfully
+
+    // Retrieve the source information by UUID
+    auto retrievedSource = logger.getSourceByUuid(TEST_SOURCE_INFO.uuid);
+    assert(retrievedSource.has_value()); // Ensure the source was found
+    assert(retrievedSource->uuid == TEST_SOURCE_INFO.uuid); // Ensure the UUID matches
+    assert(retrievedSource->name == TEST_SOURCE_INFO.name); // Ensure the name matches
+
+    std::cout << "testGetSourceByUuid passed!" << std::endl;
+#else
+    std::cout << "testGetSourceByUuid skipped (USE_SOURCE_INFO not defined)." << std::endl;
+#endif
 }
 
 /**
@@ -823,7 +961,7 @@ int main()
     std::cout << TEST_DATABASE_FILE << std::endl;
 #elif defined(TEST_DB_MYSQL)
     std::cout << "Test on MySQL database" << std::endl;
-    std::cout << connString << std::endl;
+    std::cout << TEST_CONN_STRING << std::endl;
 #endif
 
 
@@ -831,8 +969,16 @@ int main()
     std::cout << "Sync Mode: ON" << std::endl;
 #else
     std::cout << "Sync Mode: OFF" << std::endl;
-    std::cout << "Number of threads: " << TEST_NUM_THREADS << std::endl << std::endl;
+    std::cout << "Number of threads: " << TEST_NUM_THREADS << std::endl;
 #endif
+
+#ifdef USE_SOURCE_INFO
+    std::cout << "Source Info: ON" << std::endl;
+#else
+    std::cout << "Source Info: OFF" << std::endl;
+#endif
+
+    std::cout << std::endl;
 
     logger.setLogLevel(TEST_LOG_LEVEL);
 
@@ -844,18 +990,25 @@ int main()
         testFilterByThreadId();
         testFilterByFile();
         testFilterByTimestampRange();
+        testMultiFilters();
+
+#ifdef USE_SOURCE_INFO
+        testSourceInfo();
+        testGetSourceByUuid();
+        testGetAllSources();
+#endif
         //testErrorHandling(); // TODO:
         //testMultiThread(); // FIXME: SyncMode: OFF
-        testMultiFilters();
         testFileExport();
-        testClearLogs();
         testConfigSaveLoad();
         testPerformance();
+        testClearLogs();
 
         std::cout << "All tests passed successfully!" << std::endl;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
+        clearLogs();
         cleanup();
         removeTestFiles();
     }

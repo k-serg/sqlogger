@@ -9,7 +9,7 @@ project(${PROJECT_NAME})
 
 # Set the version numbers for the project
 set(SQLOGGER_VERSION_MAJOR 1)
-set(SQLOGGER_VERSION_MINOR 2)
+set(SQLOGGER_VERSION_MINOR 3)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
 set(SQLOGGER_DESCRIPTION "SQLogger is a lightweight logging library that uses SQLite as a backend.")
@@ -33,6 +33,7 @@ option(USE_SYSTEM_SQLITE "Use system SQLite" OFF)
 option(BUILD_TEST "Build test application" ON)
 option(USE_MYSQL "Enable MySQL support" OFF)
 option(BUILD_DOC "Build documentation using Doxygen" OFF)
+option(USE_SOURCE_INFO "Enable SOURCE INFO support" OFF)
 
 # Configure symbol export for Windows
 if (WIN32)
@@ -49,6 +50,10 @@ if (USE_SYSTEM_SQLITE)
 else()
     # Use the bundled SQLite amalgamation
     add_subdirectory(./3rdparty/sqlite-amalgamation)
+endif()
+
+if(USE_SOURCE_INFO)
+    add_subdirectory(./3rdparty/stduuid)
 endif()
 
 # Find and configure MySQL library (if USE_MYSQL is enabled)
@@ -146,14 +151,22 @@ if (USE_MYSQL)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${MySQL_LIBRARIES})
 endif()
 
-# Configure symbol export for Windows
-if (WIN32 AND BUILD_SHARED_LIBS)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE LOGGER_EXPORTS)
+if (USE_SOURCE_INFO)
+    target_link_libraries(${PROJECT_NAME} PRIVATE stduuid)
 endif()
 
 # Link additional libraries for Windows
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE Rpcrt4)
+endif()
+
+# Configure symbol export for Windows
+if (WIN32 AND BUILD_SHARED_LIBS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LOGGER_EXPORTS)
+endif()
+
+if (USE_SOURCE_INFO)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_SOURCE_INFO)
 endif()
 
 # Set output directories for the library
@@ -170,6 +183,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR})
 # Include SQLite amalgamation directory if not using system SQLite
 if (NOT USE_SYSTEM_SQLITE)
     include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/sqlite-amalgamation)
+endif()
+
+if(USE_SOURCE_INFO)
+    set(UUID_SYSTEM_GENERATOR ON CACHE BOOL "Enable operating system uuid generator" FORCE)
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/include)
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/gsl)
 endif()
 
 # Include MySQL directory
@@ -208,8 +227,16 @@ if (BUILD_TEST)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 
+    if (USE_SOURCE_INFO)
+        target_link_libraries(${TEST_NAME} PRIVATE stduuid)
+    endif()
+
     if (USE_MYSQL)
         target_compile_definitions(${TEST_NAME} PRIVATE USE_MYSQL)
+    endif()
+
+    if (USE_SOURCE_INFO)
+        target_compile_definitions(${TEST_NAME} PRIVATE USE_SOURCE_INFO)
     endif()
 
     # Enable testing and add a test target

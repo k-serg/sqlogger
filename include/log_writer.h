@@ -23,8 +23,6 @@
 #include "log_entry.h"
 #include "database_interface.h"
 
-//using namespace LogHelper;
-
 /**
  * @class LogWriter
  * @brief Class for writing log entries to a database.
@@ -50,15 +48,41 @@ class LogWriter
          */
         void clearLogs();
 
+#ifdef USE_SOURCE_INFO
+        /**
+        * @brief Clears all source entries from the database.
+        */
+        void clearSources();
+#endif
+
         /**
          * @brief Creates the log table in the database if it does not exist.
          */
-        void createTable();
+        void createLogsTable();
 
         /**
          * @brief Creates indexes on the log table for faster queries.
          */
         void createIndexes();
+
+#ifdef USE_SOURCE_INFO
+        /**
+         * @brief Creates the sources table in the database if it does not exist.
+         * This method creates a table for storing source information (e.g., UUID, name) in the database.
+         * If the table already exists, it will not be recreated.
+         */
+        void LogWriter::createSourcesTable();
+#endif
+
+#ifdef USE_SOURCE_INFO
+        /**
+        * @brief Adds a new source to the database.
+        * @param name The name of the source.
+        * @param uuid The UUID of the source.
+        * @return The ID of the newly added source, or SOURCE_NOT_FOUND if the operation failed.
+        */
+        int LogWriter::addSource(const std::string& name, const std::string& uuid = "");
+#endif
 
     private:
         IDatabase& database; /**< The database interface used for writing logs. */

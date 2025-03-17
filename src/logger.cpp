@@ -24,7 +24,11 @@
  * @param database The database interface to use for logging.
  * @param config LogConfig::Config struct that will be applied.
  */
-Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config)
+Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config
+#ifdef USE_SOURCE_INFO
+    , std::optional<SourceInfo> sourceInfo
+#endif
+              )
     : database(std::move(database)),
       writer( * this->database),
       reader( * this->database),
@@ -36,9 +40,43 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
       minLevel(config.minLogLevel.value_or(LOG_MIN_LOG_LEVEL)),
       syncMode(config.syncMode.value_or(LOG_SYNC_MODE)),
       onlyFileNames(config.onlyFileNames.value_or(LOG_ONLY_FILE_NAMES))
+#ifdef USE_SOURCE_INFO
+    , sourceInfo(sourceInfo)
+    , sourceId(sourceInfo.has_value() ? sourceInfo->sourceId : SOURCE_NOT_FOUND)
+#endif
 {
     std::scoped_lock lock(dbMutex);
-    writer.createTable();
+
+#ifdef USE_SOURCE_INFO
+    // Create sources table first!
+    writer.createSourcesTable();
+
+    if(this->sourceInfo.has_value())
+    {
+        // Get existing source with uuid.
+        auto storedSource = reader.getSourceByUuid(this->sourceInfo.value().uuid);
+
+        // Compare existing source uuid with this uuid.
+        if(storedSource.has_value() && storedSource.value().uuid == this->sourceInfo.value().uuid)
+        {
+            this->sourceId = storedSource.value().sourceId;
+            this->sourceInfo = storedSource;
+        }
+        else
+        {
+            // Or add new source.
+            this->sourceId = writer.addSource(this->sourceInfo->name, this->sourceInfo->uuid);
+            this->sourceInfo = reader.getSourceById(this->sourceId);
+        }
+    }
+    else
+    {
+        this->sourceId = writer.addSource(SOURCE_DEFAULT_NAME);
+        this->sourceInfo = reader.getSourceById(this->sourceId);
+    }
+#endif
+
+    writer.createLogsTable();
     writer.createIndexes();
 }
 
@@ -96,16 +134,33 @@ void Logger::logAdd(const LogLevel level, const std::string& message, const std:
         fileName = std::filesystem::path(fileName).filename().string();
     }
 
+#ifdef USE_SOURCE_INFO
+    if(sourceId == SOURCE_NOT_FOUND)
+    {
+        logError("defaultSourceId is not initialized. Cannot log message.");
+        return; // или выбросить исключение
+    }
+#endif
+
     if(syncMode)
     {
-        LogTask task{ level, message, function, fileName, line, threadId, std::chrono::system_clock::now() };
+        LogTask task{ level, message, function, fileName, line, threadId, std::chrono::system_clock::now()
+#ifdef USE_SOURCE_INFO
+                      , sourceId
+#endif
+                    };
         processTask(task);
     }
     else
     {
         threadPool.enqueue([this, level, message, function, fileName, line, threadId]
         {
-            LogTask task{ level, message, function, fileName, line, threadId, std::chrono::system_clock::now() };
+            LogTask task{
+                level, message, function, fileName, line, threadId, std::chrono::system_clock::now()
+#ifdef USE_SOURCE_INFO
+                , sourceId
+#endif
+            };
             processTask(task);
         });
     }
@@ -163,7 +218,40 @@ void Logger::processTask(const LogTask& task)
             std::string levelStr = levelToString(task.level);
             std::string timestamp = getCurrentTimestamp();
 
-            LogEntry entry{ 0, timestamp, levelStr, task.message, task.function, task.file, task.line, task.threadId };
+            LogEntry entry
+            {
+                0,
+#ifdef USE_SOURCE_INFO
+                task.sourceId,
+#endif
+                timestamp,
+                levelStr,
+                task.message,
+                task.function,
+                task.file,
+                task.line,
+                task.threadId
+#ifdef USE_SOURCE_INFO
+                , "", // uuid
+                "" // sourceName
+#endif
+            };
+
+#ifdef USE_SOURCE_INFO
+            if(task.sourceId != SOURCE_NOT_FOUND)
+            {
+                auto sourceInfo = reader.getSourceById(task.sourceId);
+                if(sourceInfo)
+                {
+                    entry.uuid = sourceInfo->uuid;
+                    entry.sourceName = sourceInfo->name;
+                }
+                else
+                {
+                    logError(ERR_MSG_SOURCE_NOT_FOUND + std::to_string(task.sourceId));
+                }
+            }
+#endif
             if(!writer.writeLog(entry))
             {
                 logError(ERR_MSG_FAILED_QUERY);
@@ -202,7 +290,25 @@ void Logger::processBatch(const std::vector<LogTask> & batch)
                 std::string levelStr = levelToString(task.level);
                 std::string timestamp = getCurrentTimestamp();
 
-                LogEntry entry{ 0, timestamp, levelStr, task.message, task.function, task.file, task.line, task.threadId };
+                LogEntry entry
+                {
+                    0,  // id
+#ifdef USE_SOURCE_INFO
+                    task.sourceId,
+#endif
+                    timestamp,
+                    levelStr,
+                    task.message,
+                    task.function,
+                    task.file,
+                    task.line,
+                    task.threadId
+#ifdef USE_SOURCE_INFO
+                    , "", // uuid
+                    "" // sourceName
+#endif
+                };
+
                 if(!writer.writeLog(entry))
                 {
                     logError(ERR_MSG_FAILED_QUERY);
@@ -244,9 +350,23 @@ void Logger::logError(const std::string& errorMessage)
 /**
  * @brief Clears all log entries from the database.
  */
-void Logger::clearLogs()
+void Logger::clearLogs(
+#ifdef USE_SOURCE_INFO
+    const bool clearSources
+#endif
+)
 {
     writer.clearLogs();
+
+#ifdef USE_SOURCE_INFO
+    if(clearSources)
+    {
+        writer.clearSources();
+
+        sourceId = SOURCE_NOT_FOUND;
+        sourceInfo.reset();
+    }
+#endif
 }
 
 /**
@@ -379,3 +499,81 @@ void Logger::setLogLevel(LogLevel minLevel)
 {
     this->minLevel = minLevel;
 }
+
+#ifdef USE_SOURCE_INFO
+/**
+ * @brief Adds a new source to the database.
+ * @param name The name of the source.
+ * @param uuid The UUID of the source.
+ * @return The ID of the newly added source, or SOURCE_NOT_FOUND if the operation failed.
+ */
+int Logger::addSource(const std::string& name, const std::string& uuid)
+{
+    if(!sourceInfo.has_value())
+    {
+        sourceInfo = SourceInfo{};
+    }
+
+    int sourceId = writer.addSource(name, uuid);
+    if(sourceId == SOURCE_NOT_FOUND)
+    {
+        logError("Failed to add source to the database: " + name);
+        //throw std::runtime_error("Failed to add source to the database: " + name);
+        return SOURCE_NOT_FOUND;
+    }
+
+    sourceInfo.value().name = name;
+    sourceInfo.value().uuid = uuid;
+    sourceInfo.value().sourceId = sourceId;
+    this->sourceId = sourceId;
+
+    return sourceId;
+}
+#endif
+
+#ifdef USE_SOURCE_INFO
+/**
+ * @brief Retrieves a source by its source ID.
+ * @param sourceId The source ID of the source to retrieve.
+ * @return An optional containing the source information if found, or std::nullopt otherwise.
+ */
+std::optional<SourceInfo> Logger::getSourceById(const int sourceId)
+{
+    return reader.getSourceById(sourceId);
+}
+#endif
+
+#ifdef USE_SOURCE_INFO
+/**
+ * @brief Retrieves a source by its UUID.
+ * @param uuid The UUID of the source to retrieve.
+ * @return An optional containing the source information if found, or std::nullopt otherwise.
+ */
+std::optional<SourceInfo> Logger::getSourceByUuid(const std::string& uuid)
+{
+    return reader.getSourceByUuid(uuid);
+}
+#endif
+
+#ifdef USE_SOURCE_INFO
+/**
+ * @brief Retrieves a source by its name.
+ * @param name The name of the source to retrieve.
+ * @return An optional containing the source information if found, or std::nullopt otherwise.
+ */
+std::optional<SourceInfo> Logger::getSourceByName(const std::string& name)
+{
+    return reader.getSourceByName(name);
+}
+#endif
+
+#ifdef USE_SOURCE_INFO
+/**
+ * @brief Retrieves all sources from the database.
+ * @return A vector containing all sources.
+ */
+std::vector<SourceInfo> Logger::getAllSources()
+{
+    return reader.getAllSources();
+}
+#endif

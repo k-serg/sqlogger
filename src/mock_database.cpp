@@ -125,14 +125,14 @@ bool MockDatabase::executeWithParams(const std::string& query, const std::vector
 
     // Emulate data insertion
     std::map<std::string, std::string> entry;
-    entry[FIELD_ID] = std::to_string(mockData.size() + 1); // Unique ID
-    entry[FIELD_TIMESTAMP] = params[0];
-    entry[FIELD_LEVEL] = params[1];
-    entry[FIELD_MESSAGE] = params[2];
-    entry[FIELD_FUNCTION] = params[3];
-    entry[FIELD_FILE] = params[4];
-    entry[FIELD_LINE] = params[5];
-    entry[FIELD_THREAD_ID] = params[6];
+    entry[FIELD_LOG_ID] = std::to_string(mockData.size() + 1); // Unique ID
+    entry[FIELD_LOG_TIMESTAMP] = params[0];
+    entry[FIELD_LOG_LEVEL] = params[1];
+    entry[FIELD_LOG_MESSAGE] = params[2];
+    entry[FIELD_LOG_FUNCTION] = params[3];
+    entry[FIELD_LOG_FILE] = params[4];
+    entry[FIELD_LOG_LINE] = params[5];
+    entry[FIELD_LOG_THREAD_ID] = params[6];
     mockData.push_back(entry);
 
     return true; // Simulate successful execution
