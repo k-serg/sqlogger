@@ -47,6 +47,12 @@ constexpr LogLevel LOG_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log
 #define LOG_INI_KEY_DATABASE_PASS "Pass"
 #define LOG_INI_KEY_DATABASE_TYPE "Type"
 
+#ifdef USE_SOURCE_INFO
+#define LOG_INI_SECTION_SOURCE "Source"
+#define LOG_INI_KEY_SOURCE_UUID "Uuid"
+#define LOG_INI_KEY_SOURCE_NAME "Name"
+#endif
+
 #define CON_STR_HOST LOG_INI_KEY_DATABASE_HOST
 #define CON_STR_PORT LOG_INI_KEY_DATABASE_PORT
 #define CON_STR_DB LOG_INI_KEY_DATABASE_NAME
@@ -74,6 +80,8 @@ namespace LogConfig
         std::optional<std::string> databaseUser; ///< Username for the database.
         std::optional<std::string> databasePass; ///< Password for the database.
         std::optional<DataBaseType> databaseType; ///< Type of the database (e.g., MySQL, SQLite).
+        std::optional<std::string> sourceUuid;  /**< The universally unique identifier (UUID) of the source. */
+        std::optional<std::string> sourceName;  /**< The name of the source. */
 
         /**
          * @brief Loads configuration from an INI file.

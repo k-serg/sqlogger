@@ -314,8 +314,9 @@ class LOGGER_API Logger
         bool onlyFileNames; /**< Log only filenames or full path to the file. */
 
 #ifdef USE_SOURCE_INFO
-        int sourceId; /**< The source ID. */
+        std::atomic<int> sourceId; /**< The source ID. */
         std::optional<SourceInfo> sourceInfo; /**< The source info. */
+        mutable std::mutex sourceMutex;  /**< Mutex for source info synchronization. */
 #endif
 };
 

@@ -127,6 +127,10 @@ auto TEST_CONFIG = [ & ]()
     cfg.databaseUser = TEST_DATABASE_USER;
     cfg.databasePass = TEST_DATABASE_PASS;
     cfg.databaseType = TEST_DATABASE_TYPE;
+#ifdef USE_SOURCE_INFO
+    cfg.sourceUuid = TEST_SOURCE_UUID;
+    cfg.sourceName = TEST_SOURCE_NAME;
+#endif
     return cfg;
 }
 ();
@@ -841,6 +845,10 @@ void testConfigSaveLoad()
     assert(loadedConfig.databaseUser == TEST_CONFIG.databaseUser);
     assert(loadedConfig.databasePass == TEST_CONFIG.databasePass);
     assert(loadedConfig.databaseType == TEST_CONFIG.databaseType);
+#ifdef USE_SOURCE_INFO
+    assert(loadedConfig.sourceUuid == TEST_CONFIG.sourceUuid);
+    assert(loadedConfig.sourceName == TEST_CONFIG.sourceName);
+#endif
 
     std::cout << "testConfigSaveLoad passed!" << std::endl;
 }
@@ -1001,8 +1009,8 @@ int main()
         //testMultiThread(); // FIXME: SyncMode: OFF
         testFileExport();
         testConfigSaveLoad();
-        testPerformance();
         testClearLogs();
+        testPerformance();
 
         std::cout << "All tests passed successfully!" << std::endl;
 

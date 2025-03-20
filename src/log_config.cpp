@@ -85,6 +85,20 @@ namespace LogConfig
                 config.databaseType = DataBaseHelper::stringToDatabaseType(databaseSection.at(LOG_INI_KEY_DATABASE_TYPE));
             }
         }
+#ifdef USE_SOURCE_INFO
+        if (iniData.count(LOG_INI_SECTION_SOURCE))
+        {
+            const auto& databaseSection = iniData[LOG_INI_SECTION_SOURCE];
+            if (databaseSection.count(LOG_INI_KEY_SOURCE_UUID))
+            {
+                config.sourceUuid = databaseSection.at(LOG_INI_KEY_SOURCE_UUID);
+            }
+            if (databaseSection.count(LOG_INI_KEY_SOURCE_NAME))
+            {
+                config.sourceName = databaseSection.at(LOG_INI_KEY_SOURCE_NAME);
+            }
+        }
+#endif
         return config;
     };
 
@@ -114,7 +128,6 @@ namespace LogConfig
         {
             iniData[LOG_INI_SECTION_LOGGER][LOG_INI_KEY_MIN_LOG_LEVEL] = LogHelper::levelToString(config.minLogLevel.value());
         }
-
         if(config.databaseName.has_value())
         {
             iniData[LOG_INI_SECTION_DATABASE][LOG_INI_KEY_DATABASE_NAME] = config.databaseName.value();
@@ -143,7 +156,16 @@ namespace LogConfig
         {
             iniData[LOG_INI_SECTION_DATABASE][LOG_INI_KEY_DATABASE_TYPE] = DataBaseHelper::databaseTypeToString(config.databaseType.value());
         }
-
+#ifdef USE_SOURCE_INFO
+        if (config.sourceUuid.has_value())
+        {
+            iniData[LOG_INI_SECTION_SOURCE][LOG_INI_KEY_SOURCE_UUID] = config.sourceUuid.value();
+        }
+        if (config.sourceName.has_value())
+        {
+            iniData[LOG_INI_SECTION_SOURCE][LOG_INI_KEY_SOURCE_NAME] = config.sourceName.value();
+        }
+#endif
         INI::write(filename, iniData);
     };
 };

@@ -48,6 +48,9 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
     std::scoped_lock lock(dbMutex);
 
 #ifdef USE_SOURCE_INFO
+
+    std::scoped_lock sourceLock(sourceMutex);
+
     // Create sources table first!
     writer.createSourcesTable();
 
@@ -69,8 +72,27 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
             this->sourceInfo = reader.getSourceById(this->sourceId);
         }
     }
+    else if (config.sourceUuid.has_value() && config.sourceName.has_value() && !config.sourceUuid->empty() && !config.sourceName->empty())
+    {
+        // Get existing source with config uuid.
+        auto storedSource = reader.getSourceByUuid(config.sourceUuid.value());
+
+        // Compare existing source uuid with config uuid.
+        if (storedSource.has_value() && storedSource.value().uuid == config.sourceUuid.value())
+        {
+            this->sourceId = storedSource.value().sourceId;
+            this->sourceInfo = storedSource;
+        }
+        else
+        {
+            // Or add new source.
+            this->sourceId = writer.addSource(this->sourceInfo->name, this->sourceInfo->uuid);
+            this->sourceInfo = reader.getSourceById(this->sourceId);
+        }
+    }
     else
     {
+        // Or add new source with default name
         this->sourceId = writer.addSource(SOURCE_DEFAULT_NAME);
         this->sourceInfo = reader.getSourceById(this->sourceId);
     }
@@ -509,6 +531,8 @@ void Logger::setLogLevel(LogLevel minLevel)
  */
 int Logger::addSource(const std::string& name, const std::string& uuid)
 {
+    std::scoped_lock Lock(dbMutex, sourceMutex);
+
     if(!sourceInfo.has_value())
     {
         sourceInfo = SourceInfo{};
