@@ -488,7 +488,7 @@ void testMultiThread()
     }
 
     // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC * 5)))
     {
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
@@ -1006,7 +1006,7 @@ int main()
         testGetAllSources();
 #endif
         //testErrorHandling(); // TODO:
-        //testMultiThread(); // FIXME: SyncMode: OFF
+        testMultiThread(); // FIXME: SyncMode: OFF
         testFileExport();
         testConfigSaveLoad();
         testClearLogs();

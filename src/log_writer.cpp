@@ -246,7 +246,11 @@ int LogWriter::addSource(const std::string& name, const std::string& uuid)
         switch(database.getDatabaseType())
         {
             case DataBaseType::Mock:
-                return 0;
+                result = database.query("SELECT LAST_INSERT_ID();");
+                if(!result.empty())
+                {
+                    return std::stoi(result[0].at("LAST_INSERT_ID()"));
+                }
                 break;
             case DataBaseType::SQLite:
                 result = database.query("SELECT LAST_INSERT_ROWID();");

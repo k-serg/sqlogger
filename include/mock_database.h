@@ -182,9 +182,13 @@ class MockDatabase : public IDatabase
 
         std::vector<std::string> executedQueries; /**< List of executed queries. */
         std::vector<std::vector<std::string>> executedParams; /**< List of executed parameters. */
-        std::vector<std::map<std::string, std::string>> mockData; /**< Mock data for testing. */
+        std::vector<std::map<std::string, std::string>> mockLogsData; /**< Mock data of the logs table for testing. */
         mutable std::mutex mutex; /**< Mutex for thread safety. */
         DataBaseType dbType = DataBaseType::Mock; /**< The type of the database (Mock). */
+#ifdef USE_SOURCE_INFO
+        std::vector<std::map<std::string, std::string>> mockSourcesData;  /**< Mock data of the sources table for testing. */
+        int lastInsertId = 0;
+#endif
 };
 
 #endif // MOCK_DATABASE_H

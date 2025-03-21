@@ -40,9 +40,15 @@ bool MockDatabase::execute(const std::string& query)
     // Handle log clearing query
     if(query.find("DELETE FROM " + std::string(LOG_TABLE_NAME)) != std::string::npos)
     {
-        mockData.clear();
+        mockLogsData.clear();
     }
 
+#ifdef USE_SOURCE_INFO
+    if(query.find("DELETE FROM " + std::string(SOURCES_TABLE_NAME)) != std::string::npos)
+    {
+        mockSourcesData.clear();
+    }
+#endif
     return true;
 }
 
@@ -56,7 +62,21 @@ std::vector<std::map<std::string, std::string>> MockDatabase::query(const std::s
     std::lock_guard<std::mutex> lock(mutex);
     executedQueries.push_back(query);
 
-    // Emulate data return with filters
+#ifdef USE_SOURCE_INFO
+    bool isSourcesTable = query.find(SOURCES_TABLE_NAME) != std::string::npos;
+
+    const auto& data = isSourcesTable ? mockSourcesData : mockLogsData;
+
+    if(query.find("LAST_INSERT_ID") != std::string::npos || query.find("LAST_INSERT_ROWID") != std::string::npos)
+    {
+        std::map<std::string, std::string> resultRow;
+        resultRow["LAST_INSERT_ID()"] = std::to_string(lastInsertId);
+        return { resultRow };
+    }
+#else
+    const auto& data = mockLogsData;
+#endif
+
     std::vector<std::map<std::string, std::string>> result;
 
     // Parse filters from query
@@ -87,7 +107,7 @@ std::vector<std::map<std::string, std::string>> MockDatabase::query(const std::s
     }
 
     // Filter data
-    for(const auto & entry : mockData)
+    for(const auto & entry : data)
     {
         bool match = true;
         for(const auto & filter : filters)
@@ -123,9 +143,34 @@ bool MockDatabase::executeWithParams(const std::string& query, const std::vector
     executedQueries.push_back(query);
     executedParams.push_back(params);
 
-    // Emulate data insertion
+#ifdef USE_SOURCE_INFO
+    bool isSourcesTable = query.find(SOURCES_TABLE_NAME) != std::string::npos;
+    if(isSourcesTable)
+    {
+        std::map<std::string, std::string> sourceEntry;
+        lastInsertId++;
+        sourceEntry[FIELD_SOURCES_ID] = std::to_string(lastInsertId);
+        sourceEntry[FIELD_SOURCES_UUID] = params[0];
+        sourceEntry[FIELD_SOURCES_NAME] = params[1];
+        mockSourcesData.push_back(sourceEntry);
+    }
+    else
+    {
+        std::map<std::string, std::string> entry;
+        entry[FIELD_LOG_ID] = std::to_string(mockLogsData.size() + 1); // Unique ID
+        entry[FIELD_LOG_SOURCES_ID] = params[0];
+        entry[FIELD_LOG_TIMESTAMP] = params[1];
+        entry[FIELD_LOG_LEVEL] = params[2];
+        entry[FIELD_LOG_MESSAGE] = params[3];
+        entry[FIELD_LOG_FUNCTION] = params[4];
+        entry[FIELD_LOG_FILE] = params[5];
+        entry[FIELD_LOG_LINE] = params[6];
+        entry[FIELD_LOG_THREAD_ID] = params[7];
+        mockLogsData.push_back(entry);
+    }
+#else
     std::map<std::string, std::string> entry;
-    entry[FIELD_LOG_ID] = std::to_string(mockData.size() + 1); // Unique ID
+    entry[FIELD_LOG_ID] = std::to_string(mockLogsData.size() + 1); // Unique ID
     entry[FIELD_LOG_TIMESTAMP] = params[0];
     entry[FIELD_LOG_LEVEL] = params[1];
     entry[FIELD_LOG_MESSAGE] = params[2];
@@ -133,7 +178,8 @@ bool MockDatabase::executeWithParams(const std::string& query, const std::vector
     entry[FIELD_LOG_FILE] = params[4];
     entry[FIELD_LOG_LINE] = params[5];
     entry[FIELD_LOG_THREAD_ID] = params[6];
-    mockData.push_back(entry);
+    mockLogsData.push_back(entry);
+#endif
 
     return true; // Simulate successful execution
 }
@@ -147,7 +193,7 @@ int MockDatabase::executeWithRowCount(const std::string& query)
 {
     std::lock_guard<std::mutex> lock(mutex);
     executedQueries.push_back(query);
-    return mockData.size(); // Simulate affected rows
+    return mockLogsData.size(); // Simulate affected rows
 }
 
 /**
@@ -210,7 +256,10 @@ DataBaseType MockDatabase::getDatabaseType() const
 void MockDatabase::clearMockData()
 {
     std::lock_guard<std::mutex> lock(mutex);
-    mockData.clear();
+    mockLogsData.clear();
+#ifdef USE_SOURCE_INFO
+    mockSourcesData.clear();
+#endif
     executedQueries.clear();
     executedParams.clear();
 }
@@ -242,7 +291,7 @@ std::vector<std::vector<std::string>> MockDatabase::getExecutedParams() const
 std::vector<std::map<std::string, std::string>> MockDatabase::getMockData() const
 {
     std::lock_guard<std::mutex> lock(mutex);
-    return mockData;
+    return mockLogsData;
 }
 
 /**

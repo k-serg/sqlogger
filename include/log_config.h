@@ -48,9 +48,9 @@ constexpr LogLevel LOG_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log
 #define LOG_INI_KEY_DATABASE_TYPE "Type"
 
 #ifdef USE_SOURCE_INFO
-#define LOG_INI_SECTION_SOURCE "Source"
-#define LOG_INI_KEY_SOURCE_UUID "Uuid"
-#define LOG_INI_KEY_SOURCE_NAME "Name"
+    #define LOG_INI_SECTION_SOURCE "Source"
+    #define LOG_INI_KEY_SOURCE_UUID "Uuid"
+    #define LOG_INI_KEY_SOURCE_NAME "Name"
 #endif
 
 #define CON_STR_HOST LOG_INI_KEY_DATABASE_HOST
