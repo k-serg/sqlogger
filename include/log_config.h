@@ -117,11 +117,11 @@ namespace LogConfig
     static std::string configToConnectionString(const LogConfig::Config& config)
     {
         std::stringstream ss;
-        ss << CON_STR_HOST << "=" << config.databaseHost.value() << ";"
-           << CON_STR_USER << "=" << config.databaseUser.value() << ";"
-           << CON_STR_PASS << "=" << config.databasePass.value() << ";"
-           << CON_STR_DB << "=" << config.databaseName.value() << ";"
-           << CON_STR_PORT << "=" << config.databasePort.value();
+        config.databaseHost.has_value() ? (ss << CON_STR_HOST << "=" << config.databaseHost.value() << ";") : ss << "";
+        config.databaseUser.has_value() ? (ss << CON_STR_USER << "=" << config.databaseUser.value() << ";") : ss << "";
+        config.databasePass.has_value() ? (ss << CON_STR_PASS << "=" << config.databasePass.value() << ";") : ss << "";
+        config.databaseName.has_value() ? (ss << CON_STR_DB << "=" << config.databaseName.value() << ";") : ss << "";
+        config.databasePort.has_value() ? (ss << CON_STR_PORT << "=" << config.databasePort.value()) : ss << "";
         return ss.str();
     };
 };

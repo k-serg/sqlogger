@@ -33,11 +33,7 @@ namespace LogConfig
         auto iniData = INI::parse(filename);
         Config config;
 
-        if(passKey.empty())
-        {
-            throw std::runtime_error(ERR_MSG_PASSKEY_EMPTY);
-        }
-        else
+        if(!passKey.empty())
         {
             config.passKey = passKey;
         }
