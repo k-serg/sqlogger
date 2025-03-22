@@ -243,6 +243,20 @@ class LOGGER_API Logger
         * @return A vector containing all sources.
         */
         std::vector<SourceInfo> getAllSources();
+
+        /**
+        * @brief Retrieves a logs by its source ID.
+        * @param sourceId The source ID of the source to retrieve.
+         * @return A list of log entries associated with the specified source ID.
+        */
+        LogEntryList getLogsBySourceId(const int& sourceId);
+
+        /**
+        * @brief Retrieves a logs by its source UUID.
+        * @param sourceUuid The UUID of the source to retrieve.
+         * @return A list of log entries associated with the specified source UUID.
+        */
+        LogEntryList getLogsBySourceUuid(const std::string& sourceUuid);
 #endif
 
     private:

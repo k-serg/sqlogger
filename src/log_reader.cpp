@@ -162,3 +162,4 @@ std::vector<SourceInfo> LogReader::getAllSources()
     return sources;
 }
 #endif
+

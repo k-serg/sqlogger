@@ -601,3 +601,39 @@ std::vector<SourceInfo> Logger::getAllSources()
     return reader.getAllSources();
 }
 #endif
+
+#ifdef USE_SOURCE_INFO
+/**
+* @brief Retrieves a logs by its source ID.
+* @param sourceId The source ID of the source to retrieve.
+ * @return A list of log entries associated with the specified source ID.
+*/
+LogEntryList Logger::getLogsBySourceId(const int& sourceId)
+{
+    Filter filter;
+    filter.type = Filter::Type::SourceId;
+    filter.field = filter.typeToField();
+    filter.op = "=";
+    filter.value = std::to_string(sourceId);
+    return getLogsByFilters({ filter });
+}
+#endif
+
+#ifdef USE_SOURCE_INFO
+/**
+* @brief Retrieves a logs by its source UUID.
+* @param sourceUuid The UUID of the source to retrieve.
+ * @return A list of log entries associated with the specified source UUID.
+*/
+LogEntryList Logger::getLogsBySourceUuid(const std::string& sourceUuid)
+{
+    const auto sourceInfo = getSourceByUuid(sourceUuid);
+    if(!sourceInfo.has_value() || sourceInfo.value().sourceId == SOURCE_NOT_FOUND)
+    {
+        return LogEntryList{};
+    }
+
+    const int sourceId = sourceInfo.value().sourceId;
+    return getLogsBySourceId(sourceId);
+}
+#endif

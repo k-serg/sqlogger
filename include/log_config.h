@@ -25,6 +25,7 @@
 #include "sqlogger_config.h"
 #include "log_entry.h"
 #include "database_helper.h"
+#include "log_crypto.h"
 
 // Defaults
 #define LOG_NUM_THREADS 4 ///< Default number of threads for asynchronous logging.
@@ -80,8 +81,21 @@ namespace LogConfig
         std::optional<std::string> databaseUser; ///< Username for the database.
         std::optional<std::string> databasePass; ///< Password for the database.
         std::optional<DataBaseType> databaseType; ///< Type of the database (e.g., MySQL, SQLite).
+#ifdef USE_SOURCE_INFO
         std::optional<std::string> sourceUuid;  /**< The universally unique identifier (UUID) of the source. */
         std::optional<std::string> sourceName;  /**< The name of the source. */
+#endif
+        std::optional<std::string> passKey; ///< Key for password encryption and decryption.
+
+        void setPassKey(const std::string& passKey)
+        {
+            this->passKey = passKey;
+        };
+
+        std::string getPassKey()
+        {
+            return passKey.value();
+        };
 
         /**
          * @brief Loads configuration from an INI file.
@@ -89,7 +103,7 @@ namespace LogConfig
          * @return A Config object containing the loaded settings.
          * @throws std::runtime_error If the file cannot be parsed.
          */
-        static Config loadFromINI(const std::string& filename = LOG_INI_FILENAME);
+        static Config loadFromINI(const std::string& filename = LOG_INI_FILENAME, const std::string& passKey = "");
 
         /**
          * @brief Saves configuration to an INI file.

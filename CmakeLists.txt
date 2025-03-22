@@ -9,7 +9,7 @@ project(${PROJECT_NAME})
 
 # Set the version numbers for the project
 set(SQLOGGER_VERSION_MAJOR 1)
-set(SQLOGGER_VERSION_MINOR 3)
+set(SQLOGGER_VERSION_MINOR 4)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
 set(SQLOGGER_DESCRIPTION "SQLogger is a lightweight logging library that uses SQLite as a backend.")
@@ -34,6 +34,8 @@ option(BUILD_TEST "Build test application" ON)
 option(USE_MYSQL "Enable MySQL support" OFF)
 option(BUILD_DOC "Build documentation using Doxygen" OFF)
 option(USE_SOURCE_INFO "Enable SOURCE INFO support" OFF)
+option(USE_AES "Enable AES encription" OFF)
+
 
 # Configure symbol export for Windows
 if (WIN32)
@@ -44,12 +46,28 @@ endif()
 if (USE_SYSTEM_SQLITE)
     find_package(SQLite3 REQUIRED)
     if (SQLite3_FOUND)
-        message(STATUS "SQLite3 found: ${SQLite3_INCLUDE_DIR}")
+        message(STATUS "SQLite3 found: ${SQLite3_VERSION} ${SQLite3_INCLUDE_DIR}")
         include_directories(${SQLite3_INCLUDE_DIR})
     endif()
 else()
     # Use the bundled SQLite amalgamation
     add_subdirectory(./3rdparty/sqlite-amalgamation)
+endif()
+
+if (BUILD_SHARED_LIBS)
+    set(OPENSSL_USE_STATIC_LIBS FALSE) # Since CMake 3.4
+else()
+    set(OPENSSL_USE_STATIC_LIBS TRUE) # Since CMake 3.4
+endif()
+
+if (USE_AES)
+    find_package(OpenSSL REQUIRED)
+    if (OpenSSL_FOUND)
+        message(STATUS "OpenSSL found: ${OPENSSL_VERSION} ${OPENSSL_ROOT_DIR} ${OPENSSL_INCLUDE_DIR} ${OPENSSL_LIBRARIES}")
+        include_directories(${OPENSSL_INCLUDE_DIR})
+    else()
+        message(FATAL_ERROR "OpenSSL NOT found")
+    endif()
 endif()
 
 if(USE_SOURCE_INFO)
@@ -106,6 +124,8 @@ set(HEADERS
     "./include/ini_parser.h"
     "./include/log_strings.h"
     "./include/database_helper.h"
+    "./include/base64.h"
+    "./include/log_crypto.h"
 )
 
 # Define the list of source files
@@ -120,7 +140,8 @@ set(SOURCES
     "./src/fs_helper.cpp"
     "./src/log_config.cpp"
     "./src/ini_parser.cpp"
- )
+    "./src/log_crypto.cpp"
+  )
 
 # Add MySQL header and source files if USE_MYSQL is enabled
 if (USE_MYSQL)
@@ -155,6 +176,14 @@ if (USE_SOURCE_INFO)
     target_link_libraries(${PROJECT_NAME} PRIVATE stduuid)
 endif()
 
+# Link OpenSSL library if USE_AES is enabled
+if (USE_AES)
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
+    if (MSVC)
+        target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::applink)
+    endif()
+endif()
+
 # Link additional libraries for Windows
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE Rpcrt4)
@@ -167,6 +196,10 @@ endif()
 
 if (USE_SOURCE_INFO)
     target_compile_definitions(${PROJECT_NAME} PRIVATE USE_SOURCE_INFO)
+endif()
+
+if (USE_AES)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_AES)
 endif()
 
 # Set output directories for the library
@@ -231,12 +264,23 @@ if (BUILD_TEST)
         target_link_libraries(${TEST_NAME} PRIVATE stduuid)
     endif()
 
+    if (USE_AES)
+        target_link_libraries(${TEST_NAME} PRIVATE OpenSSL::Crypto)
+        if (MSVC)
+            target_link_libraries(${TEST_NAME} PRIVATE OpenSSL::applink)
+        endif()
+    endif()
+
     if (USE_MYSQL)
         target_compile_definitions(${TEST_NAME} PRIVATE USE_MYSQL)
     endif()
 
     if (USE_SOURCE_INFO)
         target_compile_definitions(${TEST_NAME} PRIVATE USE_SOURCE_INFO)
+    endif()
+
+    if (USE_AES)
+        target_compile_definitions(${TEST_NAME} PRIVATE USE_AES)
     endif()
 
     # Enable testing and add a test target

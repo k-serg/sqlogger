@@ -24,6 +24,11 @@
 #include "sqlite_database.h"
 #include "mock_database.h"
 #include "logger.h"
+#include "log_crypto.h"
+
+#ifdef USE_AES
+    #pragma message("AES support enabled.")
+#endif
 
 #ifdef USE_SOURCE_INFO
     #pragma message("SOURCE INFO support enabled.")
@@ -80,6 +85,8 @@
 #define TEST_DATABASE_USER "test"
 #define TEST_DATABASE_PASS "test"
 #define TEST_DATABASE_FILE TEST_DATABASE_NAME ".db"
+#define TEST_ENC_DEC_PASS_KEY "iknowyoursecrets"
+#define TEST_ENC_DEC_STRING "test_string"
 
 #ifdef USE_SOURCE_INFO
 #define TEST_SOURCE_NAME "test_source"
@@ -126,6 +133,7 @@ auto TEST_CONFIG = [ & ]()
     cfg.databasePort = std::stoi(TEST_DATABASE_PORT);
     cfg.databaseUser = TEST_DATABASE_USER;
     cfg.databasePass = TEST_DATABASE_PASS;
+    cfg.passKey = TEST_ENC_DEC_PASS_KEY;
     cfg.databaseType = TEST_DATABASE_TYPE;
 #ifdef USE_SOURCE_INFO
     cfg.sourceUuid = TEST_SOURCE_UUID;
@@ -175,9 +183,18 @@ void clearLogs(
  * @param filename File name to load.
  * @return LogConfig::Config structure.
 */
-LogConfig::Config loadConfig(const std::string& filename)
+LogConfig::Config loadConfig(const std::string& filename, const std::string& passKey)
 {
-    return LogConfig::Config::loadFromINI(filename);
+    LogConfig::Config config;
+    try
+    {
+        config = LogConfig::Config::loadFromINI(filename, passKey);
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << std::endl;
+    }
+    return config;
 }
 
 /**
@@ -833,7 +850,7 @@ void testPerformance()
 void testConfigSaveLoad()
 {
     saveConfig(TEST_CONFIG, LOG_INI_FILENAME);
-    auto loadedConfig = loadConfig(LOG_INI_FILENAME);
+    auto loadedConfig = loadConfig(LOG_INI_FILENAME, TEST_ENC_DEC_PASS_KEY);
     assert(loadedConfig.syncMode == TEST_CONFIG.syncMode);
     assert(loadedConfig.numThreads == TEST_CONFIG.numThreads);
     assert(loadedConfig.onlyFileNames == TEST_CONFIG.onlyFileNames);
@@ -879,19 +896,21 @@ void testSourceInfo()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
-    // Retrieve logs for the specific source
-    Filter sourceFilter;
-    sourceFilter.type = Filter::Type::SourceId;
-    sourceFilter.field = sourceFilter.typeToField();
-    sourceFilter.op = "=";
-    sourceFilter.value = std::to_string(sourceId); // Use the sourceId obtained when adding the source
+    // Retrieve logs for the specific sourceId
+    LogEntryList sourceIdLogs = logger.getLogsBySourceId(sourceId);
 
-    LogEntryList sourceLogs = logger.getLogsByFilters({ sourceFilter });
+    printLogs(sourceIdLogs);
 
-    printLogs(sourceLogs);
+    assert(sourceIdLogs.size() == 1); // Ensure only one log entry is found
+    assert(sourceIdLogs[0].message == msg); // Ensure the message matches
 
-    assert(sourceLogs.size() == 1); // Ensure only one log entry is found
-    assert(sourceLogs[0].message == msg); // Ensure the message matches
+    // Retrieve logs for the specific sourceUuid
+    LogEntryList sourceUuidLogs = logger.getLogsBySourceUuid(TEST_SOURCE_INFO.uuid);
+
+    printLogs(sourceUuidLogs);
+
+    assert(sourceUuidLogs.size() == 1); // Ensure only one log entry is found
+    assert(sourceUuidLogs[0].message == msg); // Ensure the message matches
 
     std::cout << "testSourceInfo passed!" << std::endl;
 #else
@@ -950,6 +969,16 @@ void testGetSourceByUuid()
 #endif
 }
 
+void testEncryptDecrypt()
+{
+    const std::string sourceStr = TEST_ENC_DEC_STRING;
+    const std::string encodedStr = LogCrypto::encrypt(sourceStr, TEST_ENC_DEC_PASS_KEY);
+    const std::string decodedStr = LogCrypto::decrypt(encodedStr, TEST_ENC_DEC_PASS_KEY);
+    assert(sourceStr == decodedStr);
+
+    std::cout << "testEncryptDecrypt passed!" << std::endl;
+}
+
 /**
  * @brief Cleanup function to shut down the logger.
  */
@@ -986,12 +1015,19 @@ int main()
     std::cout << "Source Info: OFF" << std::endl;
 #endif
 
+#ifdef USE_AES
+    std::cout << "AES Support: ON" << std::endl;
+#else
+    std::cout << "AES Support: OFF" << std::endl;
+#endif
+
     std::cout << std::endl;
 
     logger.setLogLevel(TEST_LOG_LEVEL);
 
     try
     {
+        testEncryptDecrypt();
         testBasicFunctionality();
         testFilterByLevel();
         testFilterByFunction();
@@ -1006,7 +1042,7 @@ int main()
         testGetAllSources();
 #endif
         //testErrorHandling(); // TODO:
-        testMultiThread(); // FIXME: SyncMode: OFF
+        testMultiThread();
         testFileExport();
         testConfigSaveLoad();
         testClearLogs();

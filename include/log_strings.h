@@ -38,6 +38,11 @@
 #define ERR_MSG_MYSQL_INIT_FAILED "MySQL initialization failed"
 #define ERR_MSG_DROP_NOT_ALLOWED "Database drop is not allowed"
 #define ERR_MSG_DB_NOT_CONNECTED "Database is not connected"
+#define ERR_MSG_PASSKEY_EMPTY "Passkey is empty. Set passkey value"
+#define ERR_MSG_CRYPTO_INIT_FAILED "Decryption init failed"
+#define ERR_MSG_CRYPTO_UPDATE_FAILED "Decryption update failed"
+#define ERR_MSG_CRYPTO_FINAL_FAILED "Decryption final failed"
+#define ERR_MSG_CRYPTO_EVPCON_FAILED "Failed to create EVP context"
 
 #ifdef USE_SOURCE_INFO
     #define ERR_MSG_SOURCE_NOT_FOUND "Source info not found for sourceId: "

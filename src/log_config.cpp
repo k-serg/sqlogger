@@ -28,10 +28,19 @@ namespace LogConfig
     * @return A Config object containing the loaded settings.
     * @throws std::runtime_error If the file cannot be parsed.
     */
-    Config Config::loadFromINI(const std::string& filename)
+    Config Config::loadFromINI(const std::string& filename, const std::string& passKey)
     {
         auto iniData = INI::parse(filename);
         Config config;
+
+        if(passKey.empty())
+        {
+            throw std::runtime_error(ERR_MSG_PASSKEY_EMPTY);
+        }
+        else
+        {
+            config.passKey = passKey;
+        }
 
         if(iniData.count(LOG_INI_SECTION_LOGGER))
         {
@@ -78,7 +87,14 @@ namespace LogConfig
             }
             if(databaseSection.count(LOG_INI_KEY_DATABASE_PASS))
             {
-                config.databasePass = databaseSection.at(LOG_INI_KEY_DATABASE_PASS);
+                if(!config.passKey.has_value() || config.passKey.value().empty())
+                {
+                    throw std::runtime_error(ERR_MSG_PASSKEY_EMPTY);
+                }
+                else
+                {
+                    config.databasePass = LogCrypto::decrypt(databaseSection.at(LOG_INI_KEY_DATABASE_PASS), config.passKey.value());
+                }
             }
             if(databaseSection.count(LOG_INI_KEY_DATABASE_TYPE))
             {
@@ -150,7 +166,14 @@ namespace LogConfig
         }
         if(config.databasePass.has_value())
         {
-            iniData[LOG_INI_SECTION_DATABASE][LOG_INI_KEY_DATABASE_PASS] = config.databasePass.value();
+            if(!config.passKey.has_value() || config.passKey.value().empty())
+            {
+                throw(ERR_MSG_PASSKEY_EMPTY);
+            }
+            else
+            {
+                iniData[LOG_INI_SECTION_DATABASE][LOG_INI_KEY_DATABASE_PASS] = LogCrypto::encrypt(config.databasePass.value(), config.passKey.value());
+            }
         }
         if(config.databaseType.has_value())
         {

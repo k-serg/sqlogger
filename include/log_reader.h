@@ -71,6 +71,7 @@ class LogReader
         * @return A vector containing all sources.
         */
         std::vector<SourceInfo> getAllSources();
+
 #endif
 
     private:
