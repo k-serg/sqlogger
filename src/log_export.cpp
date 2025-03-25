@@ -61,7 +61,12 @@ void LogExport::exportToCSV(const std::string& filePath, const LogEntryList& ent
             << EXP_FIELD_FUNCTION << delimiter
             << EXP_FIELD_FILE << delimiter
             << EXP_FIELD_LINE << delimiter
-            << EXP_FIELD_THREAD_ID << std::endl;
+            << EXP_FIELD_THREAD_ID 
+#ifdef USE_SOURCE_INFO
+            << delimiter << EXP_FIELD_SOURCE_UUID
+            << delimiter << EXP_FIELD_SOURCE_NAME
+#endif
+            << std::endl;
     for(const auto & entry : entryList)
     {
         outFile << entry.id << delimiter
@@ -71,7 +76,12 @@ void LogExport::exportToCSV(const std::string& filePath, const LogEntryList& ent
                 << entry.function << delimiter
                 << entry.file << delimiter
                 << entry.line << delimiter
-                << entry.threadId << std::endl;
+                << entry.threadId
+#ifdef USE_SOURCE_INFO
+                << delimiter << entry.uuid
+                << delimiter << entry.sourceName
+#endif
+                << std::endl;
     }
 
     outFile.close();
@@ -102,6 +112,10 @@ void LogExport::exportToXML(const std::string& filePath, const LogEntryList& ent
         outFile << "    <" << EXP_FIELD_FILE << ">" << entry.file << "</" << EXP_FIELD_FILE << ">" << std::endl;
         outFile << "    <" << EXP_FIELD_LINE << ">" << entry.line << "</" << EXP_FIELD_LINE << ">" << std::endl;
         outFile << "    <" << EXP_FIELD_THREAD_ID << ">" << entry.threadId << "</" << EXP_FIELD_THREAD_ID << ">" << std::endl;
+#ifdef USE_SOURCE_INFO
+        outFile << "    <" << EXP_FIELD_SOURCE_UUID << ">" << entry.uuid << "</" << EXP_FIELD_SOURCE_UUID << ">" << std::endl;
+        outFile << "    <" << EXP_FIELD_SOURCE_NAME << ">" << entry.sourceName << "</" << EXP_FIELD_SOURCE_NAME << ">" << std::endl;
+#endif
         outFile << "  </LogEntry>" << std::endl;
     }
     outFile << "</LogEntries>" << std::endl;
@@ -134,6 +148,10 @@ void LogExport::exportToJSON(const std::string& filePath, const LogEntryList& en
                 << "    \"" << EXP_FIELD_FILE << "\": \"" << escapeJsonString(entry.file) << "\"," << std::endl
                 << "    \"" << EXP_FIELD_LINE << "\": " << entry.line << "," << std::endl
                 << "    \"" << EXP_FIELD_THREAD_ID << "\": \"" << escapeJsonString(entry.threadId) << "\"" << std::endl
+#ifdef USE_SOURCE_INFO
+            << "    \"" << EXP_FIELD_SOURCE_UUID << "\": \"" << escapeJsonString(entry.uuid) << "\"" << std::endl
+            << "    \"" << EXP_FIELD_SOURCE_NAME << "\": \"" << escapeJsonString(entry.sourceName) << "\"" << std::endl
+#endif
                 << "  }" << (i < entryList.size() - 1 ? "," : "") << std::endl;
     }
     outFile << "]" << std::endl;
@@ -165,6 +183,10 @@ void LogExport::exportToYAML(const std::string& filePath, const LogEntryList& en
         outFile << "  " << EXP_FIELD_FILE << ": " << "\"" << escapeYamlString(entry.file) << "\"" << std::endl;
         outFile << "  " << EXP_FIELD_LINE << ": " << entry.line << std::endl;
         outFile << "  " << EXP_FIELD_THREAD_ID << ": " << "\"" << escapeYamlString(entry.threadId) << "\"" << std::endl;
+#ifdef USE_SOURCE_INFO
+        outFile << "  " << EXP_FIELD_SOURCE_UUID << ": " << "\"" << escapeYamlString(entry.uuid) << "\"" << std::endl;
+        outFile << "  " << EXP_FIELD_SOURCE_NAME << ": " << "\"" << escapeYamlString(entry.sourceName) << "\"" << std::endl;
+#endif
     }
 
     outFile.close();

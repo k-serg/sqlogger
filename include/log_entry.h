@@ -74,6 +74,8 @@
 #define EXP_FIELD_FILE "File"
 #define EXP_FIELD_LINE "Line"
 #define EXP_FIELD_THREAD_ID "ThreadID"
+#define EXP_FIELD_SOURCE_UUID "SourceUUID"
+#define EXP_FIELD_SOURCE_NAME "SourceName"
 
 #define LOG_LEVEL_UNKNOWN "UNKNOWN"
 #define LOG_LEVEL_TRACE "TRACE"
@@ -340,7 +342,12 @@ struct LogEntry
              << delimiter << (name ? " " + std::string(EXP_FIELD_FUNCTION) + ": " : "") << function
              << delimiter << (name ? " " + std::string(EXP_FIELD_FILE) + ": " : "") << file
              << delimiter << (name ? " " + std::string(EXP_FIELD_LINE) + ": " : "") << line
-             << delimiter << (name ? " " + std::string(EXP_FIELD_THREAD_ID) + ": " : "") << threadId;
+             << delimiter << (name ? " " + std::string(EXP_FIELD_THREAD_ID) + ": " : "") << threadId
+#ifdef USE_SOURCE_INFO
+            << delimiter << (name ? " " + std::string(EXP_FIELD_SOURCE_UUID) + ": " : "") << uuid
+            << delimiter << (name ? " " + std::string(EXP_FIELD_SOURCE_NAME) + ": " : "") << sourceName
+#endif
+            ;
         return sout.str();
     }
 

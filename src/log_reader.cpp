@@ -42,19 +42,31 @@ LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters)
     LogEntryList logs;
     for(const auto & row : result)
     {
-        logs.push_back(LogEntry
-        {
-            std::stoi(row.at(FIELD_LOG_ID)),
 #ifdef USE_SOURCE_INFO
-            std::stoi(row.at(FIELD_LOG_SOURCES_ID)),
+        auto src = getSourceById(std::stoi(row.at(FIELD_LOG_SOURCES_ID)));
+        bool srcHasValue = false;
+        if (src.has_value() && !src.value().uuid.empty() && !src.value().name.empty())
+        {
+            srcHasValue = true;
+        }
 #endif
-            row.at(FIELD_LOG_TIMESTAMP),
-               row.at(FIELD_LOG_LEVEL),
-               row.at(FIELD_LOG_MESSAGE),
-               row.at(FIELD_LOG_FUNCTION),
-               row.at(FIELD_LOG_FILE),
-               std::stoi(row.at(FIELD_LOG_LINE)),
-               row.at(FIELD_LOG_THREAD_ID)
+        logs.push_back(LogEntry
+            {
+                std::stoi(row.at(FIELD_LOG_ID)),
+    #ifdef USE_SOURCE_INFO
+                std::stoi(row.at(FIELD_LOG_SOURCES_ID)),
+    #endif
+                row.at(FIELD_LOG_TIMESTAMP),
+                   row.at(FIELD_LOG_LEVEL),
+                   row.at(FIELD_LOG_MESSAGE),
+                   row.at(FIELD_LOG_FUNCTION),
+                   row.at(FIELD_LOG_FILE),
+                   std::stoi(row.at(FIELD_LOG_LINE)),
+                   row.at(FIELD_LOG_THREAD_ID)
+#ifdef USE_SOURCE_INFO
+                   , srcHasValue ? (src.value().uuid) : ""
+                   , srcHasValue ? (src.value().name) : ""
+#endif
         });
     }
     return logs;
