@@ -38,9 +38,38 @@
     #include "mongodb_database.h"
 #endif
 
+/**
+* @class DatabaseFactory
+* @brief Factory class for creating database instances of various types.
+* Provides a centralized way to create database connections while abstracting
+* the concrete implementations. Supports multiple database backends through
+* compile-time configuration.
+*/
 class DatabaseFactory
 {
     public:
+        /**
+        * @brief Creates a database instance of the specified type
+        * @param type The type of database to create (see DataBaseType enum)
+        * @param connectionString Connection string/parameters for the database
+        * @return std::unique_ptr<IDatabase> Pointer to the created database instance
+        *
+        * @throws std::invalid_argument If unsupported database type is requested
+        *
+        * @example
+        * // Create SQLite database
+        * auto db = DatabaseFactory::create(DataBaseType::SQLite, "logs.db");
+        *
+        * // Create mock database (for testing)
+        * auto mockDb = DatabaseFactory::create(DataBaseType::Mock);
+        *
+        * @note The actual available database types depend on compile-time definitions:
+        *  - USE_MYSQL for MySQL support
+        *  - USE_POSTGRESQL for PostgreSQL support
+        *
+        * @warning Connection string format is database-specific
+        * @see DataBaseType for supported database types
+        */
         static std::unique_ptr<IDatabase> create(DataBaseType type, const std::string& connectionString);
 };
 
