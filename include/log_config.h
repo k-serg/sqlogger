@@ -62,6 +62,33 @@ constexpr LogLevel LOG_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log
 
 constexpr char* LOG_INI_FILENAME = SQLOGGER_PROJECT_NAME ".ini";
 
+/**
+ * @namespace StringHelper
+ * @brief Provides utility functions for string operations
+ */
+namespace StringHelper
+{
+    /**
+     * @brief Joins a vector of strings into a single string with a delimiter
+     * @param parts The vector of strings to join
+     * @param delimiter The string to insert between joined parts
+     * @return std::string The resulting concatenated string
+     */
+    static std::string join(const std::vector<std::string> & parts, const std::string& delimiter)
+    {
+        std::string result;
+        for(size_t i = 0; i < parts.size(); ++i)
+        {
+            if(i != 0)
+            {
+                result += delimiter;
+            }
+            result += parts[i];
+        }
+        return result;
+    }
+};
+
 namespace LogConfig
 {
     /**
@@ -114,16 +141,83 @@ namespace LogConfig
         static void saveToINI(const Config& config, const std::string& filename = LOG_INI_FILENAME);
     };
 
+
     static std::string configToConnectionString(const LogConfig::Config& config)
     {
-        std::stringstream ss;
-        config.databaseHost.has_value() ? (ss << CON_STR_HOST << "=" << config.databaseHost.value() << ";") : ss << "";
-        config.databaseUser.has_value() ? (ss << CON_STR_USER << "=" << config.databaseUser.value() << ";") : ss << "";
-        config.databasePass.has_value() ? (ss << CON_STR_PASS << "=" << config.databasePass.value() << ";") : ss << "";
-        config.databaseName.has_value() ? (ss << CON_STR_DB << "=" << config.databaseName.value() << ";") : ss << "";
-        config.databasePort.has_value() ? (ss << CON_STR_PORT << "=" << config.databasePort.value()) : ss << "";
-        return ss.str();
+        if(!config.databaseType.has_value())
+        {
+            throw std::runtime_error("Database type is not specified in config");
+        }
+
+        switch(config.databaseType.value())
+        {
+            case DataBaseType::Mock:
+                return config.databaseName.value_or("");
+                break;
+
+            case DataBaseType::SQLite:
+                return config.databaseName.value_or("");
+                break;
+
+            case DataBaseType::MySQL:
+            {
+                std::vector<std::string> parts;
+                if(config.databaseHost.has_value())
+                    parts.push_back(std::string(CON_STR_HOST) + "=" + config.databaseHost.value());
+                if(config.databaseUser.has_value())
+                    parts.push_back(std::string(CON_STR_USER) + "=" + config.databaseUser.value());
+                if(config.databasePass.has_value())
+                    parts.push_back(std::string(CON_STR_PASS) + "=" + config.databasePass.value());
+                if(config.databaseName.has_value())
+                    parts.push_back(std::string(CON_STR_DB) + "=" + config.databaseName.value());
+                if(config.databasePort.has_value())
+                    parts.push_back(std::string(CON_STR_PORT) + "=" + std::to_string(config.databasePort.value()));
+
+                return StringHelper::join(parts, ";");
+            }
+            break;
+
+            case DataBaseType::PostgreSQL:
+            {
+                std::vector<std::string> parts;
+                if(config.databaseHost.has_value())
+                    parts.push_back("host=" + config.databaseHost.value());
+                if(config.databaseUser.has_value())
+                    parts.push_back("user=" + config.databaseUser.value());
+                if(config.databasePass.has_value())
+                    parts.push_back("password=" + config.databasePass.value());
+                if(config.databaseName.has_value())
+                    parts.push_back("dbname=" + config.databaseName.value());
+                if(config.databasePort.has_value())
+                    parts.push_back("port=" + std::to_string(config.databasePort.value()));
+
+                return StringHelper::join(parts, " ");
+            }
+            break;
+
+            case DataBaseType::MongoDB:
+            {
+                std::vector<std::string> parts;
+                if(config.databaseHost.has_value())
+                    parts.push_back("host=" + config.databaseHost.value());
+                if(config.databaseUser.has_value())
+                    parts.push_back("user=" + config.databaseUser.value());
+                if(config.databasePass.has_value())
+                    parts.push_back("password=" + config.databasePass.value());
+                if(config.databaseName.has_value())
+                    parts.push_back("database=" + config.databaseName.value());
+                if(config.databasePort.has_value())
+                    parts.push_back("port=" + std::to_string(config.databasePort.value()));
+
+                return StringHelper::join(parts, ";");
+            }
+            break;
+
+            default:
+                throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
+        }
     };
+
 };
 
 #endif // !LOG_CONFIG_H

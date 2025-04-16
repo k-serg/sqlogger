@@ -27,7 +27,7 @@
  * @param dbPath The path to the SQLite database file.
  * @throws std::runtime_error if the database cannot be opened.
  */
-SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath), db(nullptr), dbType(DataBaseType::SQLite)
+SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath), db(nullptr)
 {
     std::string errMsg;
     if(!FSHelper::CreateDir(dbPath, errMsg))
@@ -273,4 +273,13 @@ void SQLiteDatabase::reconnect()
     {
         throw std::runtime_error(ERR_MSG_FAILED_RECONNECT_DB);
     }
+}
+
+/**
+ * @brief Gets the type of the database.
+ * @return The database type (SQLite in this case).
+ */
+DataBaseType SQLiteDatabase::getDatabaseType() const
+{
+    return dbType;
 }

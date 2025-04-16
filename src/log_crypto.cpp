@@ -41,21 +41,21 @@ namespace LogCrypto
                                    reinterpret_cast<const unsigned char*>(key.c_str()), NULL))
         {
             EVP_CIPHER_CTX_free(ctx);
-            throw std::runtime_error(ERR_MSG_CRYPTO_INIT_FAILED);
+            throw std::runtime_error(ERR_MSG_CRYPTO_ENC_INIT_FAILED);
         }
 
         if(1 != EVP_EncryptUpdate(ctx, ciphertext.data(), & len,
                                   reinterpret_cast<const unsigned char*>(plaintext.c_str()), plaintext.size()))
         {
             EVP_CIPHER_CTX_free(ctx);
-            throw std::runtime_error(ERR_MSG_CRYPTO_UPDATE_FAILED);
+            throw std::runtime_error(ERR_MSG_CRYPTO_ENC_UPDATE_FAILED);
         }
         ciphertext_len = len;
 
         if(1 != EVP_EncryptFinal_ex(ctx, ciphertext.data() + len, & len))
         {
             EVP_CIPHER_CTX_free(ctx);
-            throw std::runtime_error(ERR_MSG_CRYPTO_FINAL_FAILED);
+            throw std::runtime_error(ERR_MSG_CRYPTO_ENC_FINAL_FAILED);
         }
         ciphertext_len += len;
 
@@ -83,20 +83,20 @@ namespace LogCrypto
                                    reinterpret_cast<const unsigned char*>(key.c_str()), NULL))
         {
             EVP_CIPHER_CTX_free(ctx);
-            throw std::runtime_error(ERR_MSG_CRYPTO_INIT_FAILED);
+            throw std::runtime_error(ERR_MSG_CRYPTO_DEC_INIT_FAILED);
         }
 
         if(1 != EVP_DecryptUpdate(ctx, plaintext.data(), & len, ciphertext.data(), ciphertext.size()))
         {
             EVP_CIPHER_CTX_free(ctx);
-            throw std::runtime_error(ERR_MSG_CRYPTO_UPDATE_FAILED);
+            throw std::runtime_error(ERR_MSG_CRYPTO_DEC_UPDATE_FAILED);
         }
         plaintext_len = len;
 
         if(1 != EVP_DecryptFinal_ex(ctx, plaintext.data() + len, & len))
         {
             EVP_CIPHER_CTX_free(ctx);
-            throw std::runtime_error(ERR_MSG_CRYPTO_FINAL_FAILED);
+            throw std::runtime_error(ERR_MSG_CRYPTO_DEC_FINAL_FAILED);
         }
         plaintext_len += len;
 

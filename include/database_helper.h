@@ -26,6 +26,8 @@
 #define DB_TYPE_STR_MOCK "Mock"
 #define DB_TYPE_STR_SQLITE "SQLite"
 #define DB_TYPE_STR_MYSQL "MySQL"
+#define DB_TYPE_STR_POSTGRESQL "PostgreSQL"
+#define DB_TYPE_STR_MONGODB "MongoDB"
 #define DB_TYPE_STR_UNKNOWN "UNKNOWN"
 
 /**
@@ -37,7 +39,9 @@ enum class DataBaseType
     Unknown = -1, /**< Unknown database type. */
     Mock,         /**< Mock database type. */
     SQLite,       /**< SQLite database. */
-    MySQL         /**< MySQL database. */
+    MySQL,        /**< MySQL database. */
+    PostgreSQL,   /**< PostgreSQL database. */
+    MongoDB       /**< MongoDB database. */
 };
 
 namespace DataBaseHelper
@@ -53,7 +57,10 @@ namespace DataBaseHelper
         if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MOCK)) return DataBaseType::Mock;
         if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_SQLITE)) return DataBaseType::SQLite;
         if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MYSQL)) return DataBaseType::MySQL;
-        return DataBaseType::Unknown;
+        if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_POSTGRESQL)) return DataBaseType::PostgreSQL;
+        if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MONGODB)) return DataBaseType::MongoDB;
+        // return DataBaseType::Unknown;
+        throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
     };
 
     /**
@@ -74,8 +81,12 @@ namespace DataBaseHelper
             case DataBaseType::MySQL:
                 return DB_TYPE_STR_MYSQL;
                 break;
+            case DataBaseType::PostgreSQL:
+                return DB_TYPE_STR_POSTGRESQL;
+                break;
             default:
-                return DB_TYPE_STR_UNKNOWN;
+                throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
+                // return DB_TYPE_STR_UNKNOWN;
                 break;
         }
     };

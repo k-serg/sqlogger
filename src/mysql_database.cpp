@@ -23,7 +23,7 @@
  * @brief Constructs a MySQLDatabase object.
  * @throws std::runtime_error if the MySQL library cannot be initialized.
  */
-MySQLDatabase::MySQLDatabase(const std::string& connectionString) : conn(nullptr), dbType(DataBaseType::MySQL), allowCreateDB(DB_ALLOW_CREATE)
+MySQLDatabase::MySQLDatabase(const std::string& connectionString) : conn(nullptr), allowCreateDB(DB_ALLOW_CREATE)
 {
     conn = mysql_init(nullptr);
     if(!conn)
@@ -337,7 +337,16 @@ std::string MySQLDatabase::getLastError() const
     {
         return mysql_error(conn);
     }
-    return ERR_MSG_DB_NOT_CONNECTED;
+    return ERR_MSG_FAILED_NOT_CONNECTED_DB;
+}
+
+/**
+ * @brief Gets the type of the database.
+ * @return The database type (MySQL in this case).
+ */
+DataBaseType MySQLDatabase::getDatabaseType() const
+{
+    return dbType;
 }
 
 /**

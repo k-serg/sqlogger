@@ -61,7 +61,7 @@ void LogExport::exportToCSV(const std::string& filePath, const LogEntryList& ent
             << EXP_FIELD_FUNCTION << delimiter
             << EXP_FIELD_FILE << delimiter
             << EXP_FIELD_LINE << delimiter
-            << EXP_FIELD_THREAD_ID 
+            << EXP_FIELD_THREAD_ID
 #ifdef USE_SOURCE_INFO
             << delimiter << EXP_FIELD_SOURCE_UUID
             << delimiter << EXP_FIELD_SOURCE_NAME
@@ -149,8 +149,8 @@ void LogExport::exportToJSON(const std::string& filePath, const LogEntryList& en
                 << "    \"" << EXP_FIELD_LINE << "\": " << entry.line << "," << std::endl
                 << "    \"" << EXP_FIELD_THREAD_ID << "\": \"" << escapeJsonString(entry.threadId) << "\"" << std::endl
 #ifdef USE_SOURCE_INFO
-            << "    \"" << EXP_FIELD_SOURCE_UUID << "\": \"" << escapeJsonString(entry.uuid) << "\"" << std::endl
-            << "    \"" << EXP_FIELD_SOURCE_NAME << "\": \"" << escapeJsonString(entry.sourceName) << "\"" << std::endl
+                << "    \"" << EXP_FIELD_SOURCE_UUID << "\": \"" << escapeJsonString(entry.uuid) << "\"" << std::endl
+                << "    \"" << EXP_FIELD_SOURCE_NAME << "\": \"" << escapeJsonString(entry.sourceName) << "\"" << std::endl
 #endif
                 << "  }" << (i < entryList.size() - 1 ? "," : "") << std::endl;
     }

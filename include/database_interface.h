@@ -26,6 +26,14 @@
 #include "log_entry.h"
 #include "database_helper.h"
 
+#ifndef DB_ALLOW_CREATE
+    #define DB_ALLOW_CREATE 1
+#endif // !DB_ALLOW_CREATE
+
+#ifndef DB_ALLOW_DROP
+    #define DB_ALLOW_DROP 0
+#endif // !DB_ALLOW_DROP
+
 /**
  * @class IDatabase
  * @brief Interface for database operations.

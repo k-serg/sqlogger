@@ -31,15 +31,6 @@
 #include "log_config.h"
 #include "log_strings.h"
 
-#ifndef DB_ALLOW_CREATE
-    #define DB_ALLOW_CREATE 1
-#endif // !DB_ALLOW_CREATE
-
-#ifndef DB_ALLOW_DROP
-    #define DB_ALLOW_DROP 0
-#endif // !DB_ALLOW_DROP
-
-
 /**
  * @class MySQLDatabase
  * @brief Implementation of the IDatabase interface for MySQL databases.
@@ -157,10 +148,7 @@ class MySQLDatabase : public IDatabase
          * @brief Gets the type of the database.
          * @return The database type (MySQL in this case).
          */
-        DataBaseType getDatabaseType() const override
-        {
-            return dbType;
-        };
+        DataBaseType getDatabaseType() const override;
 
     private:
         MYSQL* conn; /**< MySQL connection handle. */
@@ -179,7 +167,7 @@ class MySQLDatabase : public IDatabase
         */
         bool createDatabaseIfNotExists(const std::string& connectionString);
 
-        DataBaseType dbType; /**< The type of the database (MySQL). */
+        const DataBaseType dbType = DataBaseType::MySQL; /**< The type of the database (MySQL). */
 
         bool allowCreateDB; /**< Allow create database on server (execute CREATE DATABASE). */
 };

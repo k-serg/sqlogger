@@ -32,7 +32,8 @@
 #include "log_strings.h"
 
 #ifdef USE_SOURCE_INFO
-    #include <uuid.h>
+    #pragma message("SOURCE INFO support enabled.")
+    #include <3rdparty/stduuid/include/uuid.h>
 #endif
 
 #ifdef USE_SOURCE_INFO
@@ -192,6 +193,46 @@ namespace LogHelper
     };
 
     /**
+    * @brief Converts a time_point to a formatted string representation
+    * @param tp The time_point to format
+    * @param timeFormat The format string (default: TIMESTAMP_FMT)
+    * @return std::string Formatted time string
+    * @note Uses the system's local time zone for conversion
+    * @see TIMESTAMP_FMT for default format
+    */
+    static std::string formatTime(const std::chrono::system_clock::time_point& tp, const char* timeFormat = TIMESTAMP_FMT)
+    {
+        auto in_time_t = std::chrono::system_clock::to_time_t(tp);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime( & in_time_t), TIMESTAMP_FMT);
+        return ss.str();
+    };
+
+    /**
+    * @brief Parses a formatted time string into a time_point
+    * @param timestamp The string to parse
+    * @param timeFormat The expected format (default: TIMESTAMP_FMT)
+    * @return std::chrono::system_clock::time_point Parsed time point
+    * @throws std::runtime_error If parsing fails
+    * @note Uses the system's local time zone for conversion
+    * @warning May throw on invalid input formats
+    * @see formatTime() for inverse operation
+    */
+    static std::chrono::system_clock::time_point parseTime(const std::string& timestamp, const char* timeFormat = TIMESTAMP_FMT)
+    {
+        std::tm tm = {};
+        std::istringstream ss(timestamp);
+        ss >> std::get_time( & tm, TIMESTAMP_FMT);
+
+        if(ss.fail())
+        {
+            throw std::runtime_error("Failed to parse timestamp: " + timestamp);
+        }
+
+        return std::chrono::system_clock::from_time_t(std::mktime( & tm));
+    };
+
+    /**
      * @brief Gets the current timestamp as a string.
      * @param timeFormat The format of the timestamp.
      * @return The current timestamp as a string.
@@ -277,10 +318,27 @@ struct Filter
     };
 
     /**
+    * @brief Static method to convert the field name (string) to the corresponding Filter::Type enum value.
+    * @return Filter::Type The corresponding enum value for the field.
+    */
+    static Type fieldToType(const std::string& field)
+    {
+        if(field == FIELD_LOG_LEVEL) return Type::Level;
+        if(field == FIELD_LOG_FILE) return Type::File;
+        if(field == FIELD_LOG_FUNCTION) return Type::Function;
+        if(field == FIELD_LOG_THREAD_ID) return Type::ThreadId;
+        if(field == FIELD_LOG_TIMESTAMP) return Type::TimestampRange;
+#ifdef USE_SOURCE_INFO
+        if(field == FIELD_LOG_SOURCES_ID) return Type::SourceId;
+#endif
+        return Type::Unknown;
+    };
+
+    /**
     * @brief Converts the Filter::Type enum value to the corresponding field name (string).
     * @return std::string The corresponding field name for the Filter::Type enum value.
     */
-    std::string typeToField()
+    std::string typeToField() const
     {
         switch(type)
         {
@@ -303,6 +361,32 @@ struct Filter
         }
     };
 
+    /**
+    * @brief Static method to convert the Filter::Type enum value to the corresponding field name (string).
+    * @return std::string The corresponding field name for the Filter::Type enum value.
+    */
+    static std::string typeToField(const Filter::Type& type)
+    {
+        switch(type)
+        {
+            case Type::Level:
+                return FIELD_LOG_LEVEL;
+            case Type::File:
+                return FIELD_LOG_FILE;
+            case Type::Function:
+                return FIELD_LOG_FUNCTION;
+            case Type::ThreadId:
+                return FIELD_LOG_THREAD_ID;
+            case Type::TimestampRange:
+                return FIELD_LOG_TIMESTAMP;
+#ifdef USE_SOURCE_INFO
+            case Type::SourceId:
+                return FIELD_LOG_SOURCES_ID;
+#endif
+            default:
+                return "Unknown";
+        }
+    };
 };
 
 /**
@@ -344,10 +428,10 @@ struct LogEntry
              << delimiter << (name ? " " + std::string(EXP_FIELD_LINE) + ": " : "") << line
              << delimiter << (name ? " " + std::string(EXP_FIELD_THREAD_ID) + ": " : "") << threadId
 #ifdef USE_SOURCE_INFO
-            << delimiter << (name ? " " + std::string(EXP_FIELD_SOURCE_UUID) + ": " : "") << uuid
-            << delimiter << (name ? " " + std::string(EXP_FIELD_SOURCE_NAME) + ": " : "") << sourceName
+             << delimiter << (name ? " " + std::string(EXP_FIELD_SOURCE_UUID) + ": " : "") << uuid
+             << delimiter << (name ? " " + std::string(EXP_FIELD_SOURCE_NAME) + ": " : "") << sourceName
 #endif
-            ;
+             ;
         return sout.str();
     }
 

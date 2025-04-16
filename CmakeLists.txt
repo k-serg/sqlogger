@@ -9,7 +9,7 @@ project(${PROJECT_NAME})
 
 # Set the version numbers for the project
 set(SQLOGGER_VERSION_MAJOR 1)
-set(SQLOGGER_VERSION_MINOR 4)
+set(SQLOGGER_VERSION_MINOR 5)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
 set(SQLOGGER_DESCRIPTION "SQLogger is a lightweight logging library that uses SQLite as a backend.")
@@ -32,6 +32,8 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(USE_SYSTEM_SQLITE "Use system SQLite" OFF)
 option(BUILD_TEST "Build test application" ON)
 option(USE_MYSQL "Enable MySQL support" OFF)
+option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
+# option(USE_MONGODB "Enable MongoDB support" OFF)
 option(BUILD_DOC "Build documentation using Doxygen" OFF)
 option(USE_SOURCE_INFO "Enable SOURCE INFO support" OFF)
 option(USE_AES "Enable AES encription" OFF)
@@ -68,6 +70,12 @@ if (USE_AES)
     else()
         message(FATAL_ERROR "OpenSSL NOT found")
     endif()
+endif()
+
+if(USE_SOURCE_INFO)
+    message(STATUS "Source Info: ON")
+else()
+    message(STATUS "Source Info: OFF")
 endif()
 
 if(USE_SOURCE_INFO)
@@ -108,6 +116,31 @@ if (USE_MYSQL)
     endif()
 endif()
 
+# Find and configure PostgreSQL library (if USE_POSTGRESQL is enabled)
+if (USE_POSTGRESQL)
+    find_package(PostgreSQL REQUIRED)
+    if (PostgreSQL_FOUND)
+        message(STATUS "PostgreSQL found: ${PostgreSQL_VERSION_STRING} ${PostgreSQL_INCLUDE_DIRS} ${PostgreSQL_LIBRARIES}")
+        include_directories(${PostgreSQL_INCLUDE_DIRS})
+    else()
+        message(FATAL_ERROR "PostgreSQL not found. Please install PostgreSQL development libraries.")
+    endif()
+endif()
+
+# Find and configure MongoDB library (if USE_MONGODB is enabled)
+if (USE_MONGODB)
+#    find_package(libmongoc-1.0 REQUIRED)
+#    find_package(libbson-1.0 REQUIRED)
+#    if (libmongoc-1.0_FOUND AND libbson-1.0_FOUND)
+#        message(STATUS "MongoDB C driver found: ${LIBMONGOC_VERSION} ${LIBMONGOC_INCLUDE_DIRS} ${LIBMONGOC_LIBRARIES}")
+#        message(STATUS "BSON library found: ${LIBBSON_VERSION} ${LIBBSON_INCLUDE_DIRS} ${LIBBSON_LIBRARIES}")
+#        include_directories(${LIBMONGOC_INCLUDE_DIRS} ${LIBBSON_INCLUDE_DIRS})
+#    else()
+#        message(FATAL_ERROR "MongoDB C driver not found. Please install libmongoc and libbson.")
+#    endif()
+#    add_subdirectory(./3rdparty/mongo-c-driver)
+endif()
+
 # Define the list of header files
 set(HEADERS
     "./include/logger.h"
@@ -126,6 +159,7 @@ set(HEADERS
     "./include/database_helper.h"
     "./include/base64.h"
     "./include/log_crypto.h"
+    "./include/database_factory.h"
 )
 
 # Define the list of source files
@@ -141,6 +175,7 @@ set(SOURCES
     "./src/log_config.cpp"
     "./src/ini_parser.cpp"
     "./src/log_crypto.cpp"
+    "./src/database_factory.cpp"
   )
 
 # Add MySQL header and source files if USE_MYSQL is enabled
@@ -149,12 +184,29 @@ if (USE_MYSQL)
     list(APPEND SOURCES "./src/mysql_database.cpp")
 endif()
 
+# Add PostgreSQL header and source files if USE_PostgreSQL is enabled
+if (USE_POSTGRESQL)
+    list(APPEND HEADERS "./include/postgresql_database.h")
+    list(APPEND SOURCES "./src/postgresql_database.cpp")
+endif()
+
+# Add MongoDB header and source files if USE_MONGODB is enabled
+if (USE_MONGODB)
+    list(APPEND HEADERS "./include/mongodb_database.h")
+    list(APPEND SOURCES "./src/mongodb_database.cpp")
+endif()
+
 # Create the library (shared or static based on BUILD_SHARED_LIBS)
 if (BUILD_SHARED_LIBS)
     add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES})
 else()
     add_library(${PROJECT_NAME} STATIC ${HEADERS} ${SOURCES})
 endif()
+
+# Library target
+target_include_directories(${PROJECT_NAME} PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
 
 # Link SQLite3 library
 if (USE_SYSTEM_SQLITE)
@@ -170,6 +222,20 @@ endif()
 # Link MySQL library if USE_MYSQL is enabled
 if (USE_MYSQL)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${MySQL_LIBRARIES})
+endif()
+
+# Link PostgreSQL library if USE_POSTGRESQL is enabled
+if (USE_POSTGRESQL)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${PostgreSQL_LIBRARIES})
+endif()
+
+# Link MongoDB library if USE_MONGODB is enabled
+if (USE_MONGODB)
+    if (BUILD_SHARED_LIBS)
+        target_link_libraries(${PROJECT_NAME} PRIVATE mongoc_shared)
+    else()
+        target_link_libraries(${PROJECT_NAME} PRIVATE mongoc_static)
+    endif()
 endif()
 
 if (USE_SOURCE_INFO)
@@ -202,6 +268,18 @@ if (USE_AES)
     target_compile_definitions(${PROJECT_NAME} PRIVATE USE_AES)
 endif()
 
+if (USE_MYSQL)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_MYSQL)
+endif()
+
+if (USE_POSTGRESQL)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_POSTGRESQL)
+endif()
+
+if (USE_MONGODB)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_MONGODB)
+endif()
+
 # Set output directories for the library
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
@@ -220,13 +298,22 @@ endif()
 
 if(USE_SOURCE_INFO)
     set(UUID_SYSTEM_GENERATOR ON CACHE BOOL "Enable operating system uuid generator" FORCE)
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/include)
+    #include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/include)
     include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/gsl)
 endif()
 
 # Include MySQL directory
 if (USE_MYSQL)
     include_directories(${PROJECT_NAME} PRIVATE ${MySQL_INCLUDE_DIRS})
+endif()
+
+if (USE_POSTGRESQL AND MSVC)
+    include_directories(${PROJECT_NAME} PRIVATE ${PostgreSQL_INCLUDE_DIRS}/port/win32_msvc)
+endif()
+
+if (USE_MONGODB)
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
 endif()
 
 # Install the library
@@ -273,6 +360,14 @@ if (BUILD_TEST)
 
     if (USE_MYSQL)
         target_compile_definitions(${TEST_NAME} PRIVATE USE_MYSQL)
+    endif()
+
+    if (USE_POSTGRESQL)
+        target_compile_definitions(${TEST_NAME} PRIVATE USE_POSTGRESQL)
+    endif()
+
+    if (USE_MONGODB)
+        target_compile_definitions(${TEST_NAME} PRIVATE USE_MONGODB)
     endif()
 
     if (USE_SOURCE_INFO)

@@ -26,24 +26,8 @@
  */
 bool LogWriter::writeLog(const LogEntry& entry)
 {
-    std::string query = "INSERT INTO " + std::string(LOG_TABLE_NAME) + " ("
-#ifdef USE_SOURCE_INFO
-                        + std::string(FIELD_LOG_SOURCES_ID) + ", "
-#endif
-                        + std::string(FIELD_LOG_TIMESTAMP) + ", "
-                        + std::string(FIELD_LOG_LEVEL) + ", "
-                        + std::string(FIELD_LOG_MESSAGE) + ", "
-                        + std::string(FIELD_LOG_FUNCTION) + ", "
-                        + std::string(FIELD_LOG_FILE) + ", "
-                        + std::string(FIELD_LOG_LINE) + ", "
-                        + std::string(FIELD_LOG_THREAD_ID)
-                        + ") VALUES ("
-#ifdef USE_SOURCE_INFO
-                        "?, "
-#endif
-                        "?, ?, ?, ?, ?, ?, ?);";
-
     std::vector<std::string> params;
+
 #ifdef USE_SOURCE_INFO
     params.push_back(std::to_string(entry.sourceId));
 #endif
@@ -54,6 +38,44 @@ bool LogWriter::writeLog(const LogEntry& entry)
     params.push_back(entry.file);
     params.push_back(std::to_string(entry.line));
     params.push_back(entry.threadId);
+
+    std::string query = "INSERT INTO " + std::string(LOG_TABLE_NAME) + " (";
+
+#ifdef USE_SOURCE_INFO
+    query += std::string(FIELD_LOG_SOURCES_ID) + ", ";
+#endif
+    query += std::string(FIELD_LOG_TIMESTAMP) + ", ";
+    query += std::string(FIELD_LOG_LEVEL) + ", ";
+    query += std::string(FIELD_LOG_MESSAGE) + ", ";
+    query += std::string(FIELD_LOG_FUNCTION) + ", ";
+    query += std::string(FIELD_LOG_FILE) + ", ";
+    query += std::string(FIELD_LOG_LINE) + ", ";
+    query += std::string(FIELD_LOG_THREAD_ID) + ") VALUES (";
+
+    switch(database.getDatabaseType())
+    {
+        case DataBaseType::PostgreSQL:
+
+#ifdef USE_SOURCE_INFO
+            query += "$1, $2, $3, $4, $5, $6, $7, $8";
+#else
+            query += "$1, $2, $3, $4, $5, $6, $7";
+#endif
+            break;
+
+        case DataBaseType::SQLite:
+        case DataBaseType::MySQL:
+        default:
+#ifdef USE_SOURCE_INFO
+            query += "?, ?, ?, ?, ?, ?, ?, ?";
+#else
+            query += "?, ?, ?, ?, ?, ?, ?";
+#endif
+            break;
+    }
+
+    query += ");";
+
     return database.executeWithParams(query, params);
 }
 
@@ -84,6 +106,10 @@ void LogWriter::createLogsTable()
 
     switch(database.getDatabaseType())
     {
+        case DataBaseType::Mock:
+            return;
+            break;
+
         case DataBaseType::SQLite:
             createTableQuery = "CREATE TABLE IF NOT EXISTS " + std::string(LOG_TABLE_NAME) + " ("
                                + std::string(FIELD_LOG_ID) + " INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -122,7 +148,27 @@ void LogWriter::createLogsTable()
                                + ");";
             break;
 
+        case DataBaseType::PostgreSQL:
+            createTableQuery = "CREATE TABLE IF NOT EXISTS " + std::string(LOG_TABLE_NAME) + " ("
+                               + std::string(FIELD_LOG_ID) + " BIGSERIAL PRIMARY KEY, "
+#ifdef USE_SOURCE_INFO
+                               + std::string(FIELD_LOG_SOURCES_ID) + " INTEGER, "
+#endif
+                               + std::string(FIELD_LOG_TIMESTAMP) + " TIMESTAMP NOT NULL, "
+                               + std::string(FIELD_LOG_LEVEL) + " TEXT NOT NULL, "
+                               + std::string(FIELD_LOG_MESSAGE) + " TEXT NOT NULL, "
+                               + std::string(FIELD_LOG_FUNCTION) + " TEXT NOT NULL, "
+                               + std::string(FIELD_LOG_FILE) + " TEXT NOT NULL, "
+                               + std::string(FIELD_LOG_LINE) + " INTEGER NOT NULL, "
+                               + std::string(FIELD_LOG_THREAD_ID) + " TEXT NOT NULL"
+#ifdef USE_SOURCE_INFO
+                               + ", FOREIGN KEY (" + std::string(FIELD_LOG_SOURCES_ID) + ") REFERENCES " + std::string(SOURCES_TABLE_NAME) + "(" + std::string(FIELD_SOURCES_ID) + ")"
+#endif
+                               + ");";
+            break;
+
         default:
+            throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
             break;
     }
 
@@ -138,6 +184,10 @@ void LogWriter::createIndexes()
 
     switch(database.getDatabaseType())
     {
+        case DataBaseType::Mock:
+            return;
+            break;
+
         case DataBaseType::SQLite:
             indexQueries =
             {
@@ -160,27 +210,78 @@ void LogWriter::createIndexes()
             };
             break;
 
+        case DataBaseType::PostgreSQL:
+            indexQueries =
+            {
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_LOG_TIMESTAMP) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_LOG_TIMESTAMP + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_LOG_LEVEL) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_LOG_LEVEL + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_LOG_FILE) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_LOG_FILE + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_LOG_THREAD_ID) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_LOG_THREAD_ID + ");",
+                "CREATE INDEX IF NOT EXISTS idx_" + std::string(FIELD_LOG_FUNCTION) + " ON " + std::string(LOG_TABLE_NAME) + " (" + FIELD_LOG_FUNCTION + ");"
+            };
+            break;
         default:
+            throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
             break;
     }
 
     for(const auto & query : indexQueries)
     {
-        if(database.getDatabaseType() == DataBaseType::MySQL)
+        switch(database.getDatabaseType())
         {
-            std::string checkQuery =
-                "SELECT COUNT(*) "
-                "FROM information_schema.statistics "
-                "WHERE table_schema = DATABASE() "
-                "  AND table_name = '" + std::string(LOG_TABLE_NAME) + "' "
-                "  AND index_name = 'idx_" + query.substr(query.find("idx_") + 4, query.find(" ") - query.find("idx_") - 4) + "';";
-
-            auto result = database.query(checkQuery);
-            if(!result.empty() && result[0].at("COUNT(*)") != "0")
+            case DataBaseType::MySQL:
             {
-                // Index already exists, skip.
-                continue;
+                std::string checkQuery =
+                    "SELECT COUNT(*) "
+                    "FROM information_schema.statistics "
+                    "WHERE table_schema = DATABASE() "
+                    "  AND table_name = '" + std::string(LOG_TABLE_NAME) + "' "
+                    "  AND index_name = 'idx_" + query.substr(query.find("idx_") + 4, query.find(" ") - query.find("idx_") - 4) + "';";
+
+                auto result = database.query(checkQuery);
+                if(!result.empty() && result[0].at("COUNT(*)") != "0")
+                {
+                    // Index already exists, skip.
+                    continue;
+                }
             }
+            break;
+
+            case DataBaseType::PostgreSQL:
+            {
+                std::string checkQuery =
+                    "SELECT COUNT(*) FROM pg_indexes "
+                    "WHERE schemaname = current_schema() "
+                    "  AND tablename = '" + std::string(LOG_TABLE_NAME) + "' "
+                    "  AND indexname = 'idx_" + query.substr(query.find("idx_") + 4,
+                        query.find(" ON ") - query.find("idx_") - 4) + "';";
+
+                auto result = database.query(checkQuery);
+                if(!result.empty() && result[0].at("count") != "0")
+                {
+                    continue;
+                }
+            };
+            break;
+
+            case DataBaseType::SQLite:
+            {
+                std::string checkQuery =
+                    "SELECT COUNT(*) FROM sqlite_master "
+                    "WHERE type = 'index' "
+                    "  AND tbl_name = '" + std::string(LOG_TABLE_NAME) + "' "
+                    "  AND name = 'idx_" + query.substr(query.find("idx_") + 4, query.find(" ") - query.find("idx_") - 4) + "';";
+
+                auto result = database.query(checkQuery);
+                if(!result.empty() && result[0].at("COUNT(*)") != "0")
+                {
+                    continue;
+                }
+            };
+            break;
+
+            default:
+                break;
         }
 
         database.execute(query);
@@ -199,6 +300,10 @@ void LogWriter::createSourcesTable()
 
     switch(database.getDatabaseType())
     {
+        case DataBaseType::Mock:
+            return;
+            break;
+
         case DataBaseType::SQLite:
             createTableQuery = "CREATE TABLE IF NOT EXISTS " + std::string(SOURCES_TABLE_NAME) + " ("
                                + std::string(FIELD_SOURCES_ID) + " INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -213,7 +318,16 @@ void LogWriter::createSourcesTable()
                                + std::string(FIELD_SOURCES_NAME) + " TEXT NOT NULL);";
             break;
 
+        case DataBaseType::PostgreSQL:
+            createTableQuery =
+                "CREATE TABLE IF NOT EXISTS " + std::string(SOURCES_TABLE_NAME) + " ("
+                + std::string(FIELD_SOURCES_ID) + " SERIAL PRIMARY KEY, "
+                + std::string(FIELD_SOURCES_UUID) + " UUID UNIQUE NOT NULL, "
+                + std::string(FIELD_SOURCES_NAME) + " TEXT NOT NULL)";
+            break;
+
         default:
+            throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
             break;
     }
 
@@ -232,7 +346,22 @@ int LogWriter::addSource(const std::string& name, const std::string& uuid)
 {
     std::string query = "INSERT INTO " + std::string(SOURCES_TABLE_NAME) + " ("
                         + std::string(FIELD_SOURCES_UUID) + ", "
-                        + std::string(FIELD_SOURCES_NAME) + ") VALUES (?, ?);";
+                        + std::string(FIELD_SOURCES_NAME) + ") VALUES (";
+
+    switch(database.getDatabaseType())
+    {
+        case DataBaseType::PostgreSQL:
+            query += "$1, $2";
+            break;
+
+        case DataBaseType::SQLite:
+        case DataBaseType::MySQL:
+        default:
+            query += "?, ?";
+            break;
+    }
+
+    query += ");";
 
     std::vector<std::string> params =
     {
@@ -252,6 +381,7 @@ int LogWriter::addSource(const std::string& name, const std::string& uuid)
                     return std::stoi(result[0].at("LAST_INSERT_ID()"));
                 }
                 break;
+
             case DataBaseType::SQLite:
                 result = database.query("SELECT LAST_INSERT_ROWID();");
                 if(!result.empty())
@@ -259,6 +389,7 @@ int LogWriter::addSource(const std::string& name, const std::string& uuid)
                     return std::stoi(result[0].at("LAST_INSERT_ROWID()"));
                 }
                 break;
+
             case DataBaseType::MySQL:
                 result = database.query("SELECT LAST_INSERT_ID();");
                 if(!result.empty())
@@ -266,11 +397,23 @@ int LogWriter::addSource(const std::string& name, const std::string& uuid)
                     return std::stoi(result[0].at("LAST_INSERT_ID()"));
                 }
                 break;
+
+            case DataBaseType::PostgreSQL:
+
+                result = database.query("SELECT currval(pg_get_serial_sequence('"
+                                        + std::string(SOURCES_TABLE_NAME) + "', '"
+                                        + std::string(FIELD_SOURCES_ID) + "'));");
+                if(!result.empty())
+                {
+                    return std::stoi(result[0].begin()->second);
+                }
+                break;
+
             default:
                 break;
         }
 
     }
-    return -1;
+    return SOURCE_NOT_FOUND;
 }
 #endif

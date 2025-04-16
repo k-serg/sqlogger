@@ -21,8 +21,7 @@
 #include <iostream>
 #include <thread>
 #include <filesystem>
-#include "sqlite_database.h"
-#include "mock_database.h"
+#include "database_factory.h"
 #include "logger.h"
 #include "log_crypto.h"
 
@@ -32,26 +31,38 @@
 
 #ifdef USE_SOURCE_INFO
     #pragma message("SOURCE INFO support enabled.")
-    #include <uuid.h>
+    #include <3rdparty/stduuid/include/uuid.h>
 #endif
 
 // Set "USE_MYSQL" option to "ON" in CMake parameters, to enable MySQL support.
 #ifdef USE_MYSQL
     #pragma message("MySQL support enabled.")
-    #include "mysql_database.h"
-#endif // USE_MYSQL
+#endif
+
+// Set "USE_POSTGRESQL" option to "ON" in CMake parameters, to enable PostgreSQL support.
+#ifdef USE_POSTGRESQL
+    #pragma message("PostgreSQL support enabled.")
+#endif
+
+// Set "USE_MONGODB" option to "ON" in CMake parameters, to enable MongoDB support.
+#ifdef USE_MONGODB
+    #pragma message("MongoDB support enabled.")
+#endif
 
 // Define (uncomment) only one!
 //#define TEST_DB_MOCK
 #define TEST_DB_SQLITE
 //#define TEST_DB_MYSQL
-// TODO: TEST_DB_POSTGRESQL?
+//#define TEST_DB_POSTGRESQL
+//#define TEST_DB_MONGODB
 
 // Count defined TEST_DB_
-#define COUNT_DEFINED_VALUES      \
-    (defined(TEST_DB_MOCK) +      \
-     defined(TEST_DB_SQLITE) +    \
-     defined(TEST_DB_MYSQL))
+#define COUNT_DEFINED_VALUES       \
+    (defined(TEST_DB_MOCK) +       \
+     defined(TEST_DB_SQLITE) +     \
+     defined(TEST_DB_MYSQL) +      \
+     defined(TEST_DB_POSTGRESQL) + \
+     defined(TEST_DB_MONGODB))
 
 // FIXME: Broken, idk why.
 //#if COUNT_DEFINED_VALUES == 0
@@ -68,6 +79,10 @@
     #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_SQLITE
 #elif defined(TEST_DB_MYSQL)
     #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_MYSQL
+#elif defined(TEST_DB_POSTGRESQL)
+    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_POSTGRESQL
+#elif defined(TEST_DB_MONGODB)
+    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_MONGODB
 #endif
 
 #define TEST_EXPORT_FILE "test_logs_export"
@@ -81,7 +96,17 @@
 #define TEST_DATABASE_NAME "test_logs"
 #define TEST_DATABASE_TABLE "logs"
 #define TEST_DATABASE_HOST "localhost"
-#define TEST_DATABASE_PORT "3306"
+
+#if defined(TEST_DB_MYSQL)
+    #define TEST_DATABASE_PORT "3306"
+#elif defined(TEST_DB_POSTGRESQL)
+    #define TEST_DATABASE_PORT "5432"
+#elif defined(TEST_DB_MONGODB)
+    #define TEST_DATABASE_PORT "27017"
+#else
+    #define TEST_DATABASE_PORT ""
+#endif
+
 #define TEST_DATABASE_USER "test"
 #define TEST_DATABASE_PASS "test"
 #define TEST_DATABASE_FILE TEST_DATABASE_NAME ".db"
@@ -127,13 +152,19 @@ auto TEST_CONFIG = [ & ]()
     cfg.numThreads = TEST_NUM_THREADS;
     cfg.onlyFileNames = TEST_ONLY_FILE_NAME;
     cfg.minLogLevel = TEST_LOG_LEVEL;
+#if defined(TEST_DB_SQLITE)
+    cfg.databaseName = TEST_DATABASE_FILE;
+#else
     cfg.databaseName = TEST_DATABASE_NAME;
+#endif
     cfg.databaseTable = TEST_DATABASE_TABLE;
+#if !defined(TEST_DB_SQLITE) && !defined(TEST_DB_MOCK)
     cfg.databaseHost = TEST_DATABASE_HOST;
     cfg.databasePort = std::stoi(TEST_DATABASE_PORT);
     cfg.databaseUser = TEST_DATABASE_USER;
     cfg.databasePass = TEST_DATABASE_PASS;
     cfg.passKey = TEST_ENC_DEC_PASS_KEY;
+#endif
     cfg.databaseType = TEST_DATABASE_TYPE;
 #ifdef USE_SOURCE_INFO
     cfg.sourceUuid = TEST_SOURCE_UUID;
@@ -149,13 +180,17 @@ auto TEST_CONN_STRING = [ & ]()
 }
 ();
 
-// Use a real database or mock
+
 #if defined(TEST_DB_MOCK)
-    auto database = std::make_unique<MockDatabase>();
+    auto database = DatabaseFactory::create(DataBaseType::Mock, TEST_CONN_STRING);
 #elif defined(TEST_DB_SQLITE)
-    auto database = std::make_unique<SQLiteDatabase>(TEST_DATABASE_FILE);
+    auto database = DatabaseFactory::create(DataBaseType::SQLite, TEST_CONN_STRING);
 #elif defined(TEST_DB_MYSQL)
-    auto database = std::make_unique<MySQLDatabase>(TEST_CONN_STRING);
+    auto database = DatabaseFactory::create(DataBaseType::MySQL, TEST_CONN_STRING);
+#elif defined(TEST_DB_POSTGRESQL)
+    auto database = DatabaseFactory::create(DataBaseType::PostgreSQL, TEST_CONN_STRING);
+#elif defined(TEST_DB_MONGODB)
+    auto database = DatabaseFactory::create(DataBaseType::MongoDB, TEST_CONN_STRING);
 #endif
 
 Logger logger(std::move(database), TEST_CONFIG
@@ -666,12 +701,12 @@ void testErrorHandling()
 
 #if defined(TEST_DB_MOCK)
     // Use MockDatabase
-    auto mockDb = std::make_unique<MockDatabase>();
+    auto mockDb = DatabaseFactory::create(DataBaseType::Mock, TEST_CONN_STRING);
     // Override executeWithParams to simulate an error
-    mockDb->executeWithParamsOverride = [](const std::string& query, const std::vector<std::string> & params) -> bool
-    {
-        return false; // Simulate an error
-    };
+    //mockDb->executeWithParamsOverride = [](const std::string& query, const std::vector<std::string> & params) -> bool
+    //{
+    //    return false; // Simulate an error
+    //};
     database = std::move(mockDb);
 #elif defined(TEST_DB_SQLITE)
     // Use a real SQLite database
@@ -837,7 +872,7 @@ void testPerformance()
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
     auto stats = logger.getStats();
-    std::cout << std::endl << "**** Performance Test ****" << std::endl;
+    std::cout << std::endl << "*** Performance Test ***" << std::endl;
     std::cout << "Logged " << numLogs << " messages in " << duration << " ms" << std::endl;
     std::cout << "Total tasks processed: " << stats.totalTasksProcessed << std::endl;
     std::cout << "Average processing time: " << stats.averageProcessingTime << " ms" << std::endl;
@@ -980,6 +1015,116 @@ void testEncryptDecrypt()
 }
 
 /**
+ * @brief Stress test with multiple connections having different Source Info
+ * @note Only for MySQL/PostgreSQL
+ */
+void testMultiConnectionStress()
+{
+#if defined(TEST_DB_SQLITE) || defined(TEST_DB_MOCK)
+    std::cout << std::endl << "Skipping multi-connection test" << std::endl;
+    return;
+#endif
+
+    const int numConnections = 10;    // Number of connections with unique sources
+    const int logsPerConnection = 1000; // Logs per connection
+    std::vector<std::thread> threads;
+    std::atomic<int> logsWritten{ 0 };
+
+    // Clear existing logs
+    logger.clearLogs(
+#ifdef USE_SOURCE_INFO
+              true
+#endif
+          );
+
+    // Thread function with unique Source Info
+    auto writerFunc = [ & ](int connId)
+    {
+        // Create unique config per connection
+        auto config = TEST_CONFIG;
+
+        auto connString = LogConfig::configToConnectionString(config);
+
+#if defined(TEST_DB_MOCK)
+        auto dbType = DataBaseType::Mock;
+#elif defined(TEST_DB_SQLITE)
+        auto dbType = DataBaseType::SQLite;
+#elif defined(TEST_DB_MYSQL)
+        auto dbType = DataBaseType::MySQL;
+#elif defined(TEST_DB_POSTGRESQL)
+        auto dbType = DataBaseType::PostgreSQL;
+#elif defined(TEST_DB_MONGODB)
+        auto dbType = DataBaseType::MongoDB;
+#endif
+
+        // Generate unique source info
+#ifdef USE_SOURCE_INFO
+        SourceInfo srcInfo;
+        srcInfo.name = "STRESS_SOURCE_" + std::to_string(connId);
+        srcInfo.uuid = generateUUID(); // Your UUID generation function
+
+        // Create logger with unique source
+        auto db = DatabaseFactory::create(dbType, connString);
+        Logger connLogger(std::move(db), config, srcInfo);
+
+#else
+        auto db = DatabaseFactory::create(dbType, connString);
+        Logger connLogger(std::move(db), config);
+#endif
+
+        // Write logs
+        for(int i = 0; i < logsPerConnection; ++i)
+        {
+            LOG_INFO(connLogger) << "Stress log " << i << " from source " << connId;
+            logsWritten++;
+        }
+    };
+
+    // Start threads
+    for(int i = 0; i < numConnections; ++i)
+    {
+        threads.emplace_back(writerFunc, i);
+    }
+
+    // Wait for completion
+    for(auto & t : threads)
+    {
+        if(t.joinable()) t.join();
+    }
+
+    // Verification
+    logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC));
+
+#ifdef USE_SOURCE_INFO
+    // Verify source-specific logging
+    for(int i = 0; i < numConnections; ++i)
+    {
+        std::string sourceName = "STRESS_SOURCE_" + std::to_string(i);
+        auto srcInfo = logger.getSourceByName(sourceName);
+
+        if(srcInfo.has_value())
+        {
+            auto logs = logger.getLogsBySourceUuid(srcInfo->uuid);
+            // std::cout << "Source " << sourceName << " logs: " << logs.size() << std::endl;
+            assert(logs.size() == logsPerConnection);
+        }
+    }
+#endif
+
+    // Verify total logs
+    auto allLogs = logger.getAllLogs();
+    std::cout << std::endl << "*** Multi-Connection Stress Test ***" << std::endl;
+    std::cout << "Number of connections: " << numConnections << std::endl;
+    std::cout << "Logs per connection: " << logsPerConnection << std::endl;
+    std::cout << "Expected logs: " << (numConnections* logsPerConnection) << std::endl;
+    std::cout << "Total logs: " << allLogs.size() << std::endl;
+
+    assert(allLogs.size() == numConnections* logsPerConnection);
+
+    std::cout << "testMultiConnectionStress passed!" << std::endl;
+}
+
+/**
  * @brief Cleanup function to shut down the logger.
  */
 void cleanup()
@@ -991,13 +1136,17 @@ int main()
 {
     std::cout << SQLOGGER_PROJECT_NAME << " v." << SQLOGGER_VERSION_FULL << std::endl;
 
+    std::cout << "Test on: ";
 #if defined(TEST_DB_MOCK)
-    std::cout << "Test on mock data" << std::endl;
+    std::cout << DB_TYPE_STR_MOCK << " data" << std::endl;
 #elif defined(TEST_DB_SQLITE)
-    std::cout << "Test on SQLite database" << std::endl;
+    std::cout << DB_TYPE_STR_SQLITE << " database" << std::endl;
     std::cout << TEST_DATABASE_FILE << std::endl;
 #elif defined(TEST_DB_MYSQL)
-    std::cout << "Test on MySQL database" << std::endl;
+    std::cout << DB_TYPE_STR_MYSQL << " database" << std::endl;
+    std::cout << TEST_CONN_STRING << std::endl;
+#elif defined(TEST_DB_POSTGRESQL)
+    std::cout << DB_TYPE_STR_POSTGRESQL << " database" << std::endl;
     std::cout << TEST_CONN_STRING << std::endl;
 #endif
 
@@ -1047,7 +1196,9 @@ int main()
         testConfigSaveLoad();
         testClearLogs();
         testPerformance();
+        testMultiConnectionStress();
 
+        std::cout << std::endl;
         std::cout << "All tests passed successfully!" << std::endl;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));

@@ -129,16 +129,9 @@ class SQLiteDatabase : public IDatabase
             return false;
         }; // TODO: Implement
 
-        DataBaseType getDatabaseType() const override
-        {
-            return dbType;
-        };
+        DataBaseType getDatabaseType() const override;
 
     private:
-        sqlite3* db; /**< SQLite database handle. */
-        std::string dbPath; /**< Path to the database file. */
-        DataBaseType dbType;
-
         /**
          * @brief Reconnects to the database.
          * @throws std::runtime_error if reconnection fails.
@@ -151,6 +144,10 @@ class SQLiteDatabase : public IDatabase
         * @return True if the database was created or already exists, false otherwise.
         */
         bool createDatabaseIfNotExists(const std::string& dbPath);
+
+        sqlite3* db; /**< SQLite database handle. */
+        std::string dbPath; /**< Path to the database file. */
+        const DataBaseType dbType = DataBaseType::SQLite; /**< The type of the database (SQLite). */
 };
 
 #endif // SQLITE_DATABASE_H

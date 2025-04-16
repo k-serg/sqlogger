@@ -42,7 +42,7 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
       onlyFileNames(config.onlyFileNames.value_or(LOG_ONLY_FILE_NAMES))
 #ifdef USE_SOURCE_INFO
     , sourceInfo(sourceInfo)
-    , sourceId(sourceInfo.has_value() ? sourceInfo->sourceId : SOURCE_NOT_FOUND)
+    , sourceId(sourceInfo.has_value() && sourceInfo.value().sourceId != SOURCE_NOT_FOUND ? sourceInfo.value().sourceId : SOURCE_NOT_FOUND)
 #endif
 {
     std::scoped_lock lock(dbMutex);
@@ -159,8 +159,8 @@ void Logger::logAdd(const LogLevel level, const std::string& message, const std:
 #ifdef USE_SOURCE_INFO
     if(sourceId == SOURCE_NOT_FOUND)
     {
-        logError("defaultSourceId is not initialized. Cannot log message.");
-        return; // или выбросить исключение
+        logError(ERR_MSG_SOURCE_ID_NOT_INIT);
+        return;
     }
 #endif
 
@@ -541,8 +541,8 @@ int Logger::addSource(const std::string& name, const std::string& uuid)
     int sourceId = writer.addSource(name, uuid);
     if(sourceId == SOURCE_NOT_FOUND)
     {
-        logError("Failed to add source to the database: " + name);
-        //throw std::runtime_error("Failed to add source to the database: " + name);
+        logError(ERR_MSG_FAILED_TO_ADD_SOURCE + name);
+        //throw std::runtime_error(ERR_MSG_FAILED_TO_ADD_SOURCE + name);
         return SOURCE_NOT_FOUND;
     }
 
