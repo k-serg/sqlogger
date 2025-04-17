@@ -20,14 +20,69 @@
 #include "log_config.h"
 #include "ini_parser.h"
 
+/**
+* @brief Joins a vector of strings into a single string with a delimiter
+* @param parts The vector of strings to join
+* @param delimiter The string to insert between joined parts
+* @return std::string The resulting concatenated string
+*/
+std::string StringHelper::join(const std::vector<std::string>& parts, const std::string& delimiter)
+{
+    std::string result;
+    for (size_t i = 0; i < parts.size(); ++i)
+    {
+        if (i != 0)
+        {
+            result += delimiter;
+        }
+        result += parts[i];
+    }
+    return result;
+}
+
 namespace LogConfig
 {
     /**
-    * @brief Loads configuration from an INI file.
-    * @param filename The path to the INI file.
-    * @return A Config object containing the loaded settings.
-    * @throws std::runtime_error If the file cannot be parsed.
+    * @brief Sets the password key for password encryption and decryption.
+    * @param passKey The secret key for password encryption and decryption.
+    * @throws std::runtime_error If passKey empty.
+    * @note The key is stored in memory in plaintext. Consider additional security
+    * measures if handling highly sensitive data.
+    * @warning Avoid hardcoding keys in source code. Prefer secure configuration
+    * or key management systems for production environments.
     */
+    void Config::setPassKey(const std::string& passKey)
+    {
+        if (!passKey.empty())
+            this->passKey = passKey;
+        else
+            throw std::runtime_error(ERR_MSG_PASSKEY_EMPTY);
+    };
+
+    /**
+    * @brief Retrieves the current password key
+    * @return std::string The stored password key
+    * @throws std::runtime_error If no key has been set (when passKey is empty)
+    * @note The returned key should be handled securely and cleared from memory
+    * when no longer needed.
+    * @warning Exposing the key through logs or debugging outputs creates
+    * security vulnerabilities.
+    */
+    std::string Config::getPassKey()
+    {
+        if (passKey.has_value())
+            return passKey.value();
+        else
+            throw std::runtime_error(ERR_MSG_PASSKEY_EMPTY);
+    };
+
+    /**
+     * @brief Loads configuration from an INI file.
+     * @param filename The path to the INI file.
+     * @param passKey The key for password decryption.
+     * @return A Config object containing the loaded settings.
+     * @throws std::runtime_error If the file cannot be parsed.
+     */
     Config Config::loadFromINI(const std::string& filename, const std::string& passKey)
     {
         auto iniData = INI::parse(filename);
@@ -186,6 +241,104 @@ namespace LogConfig
         }
 #endif
         INI::write(filename, iniData);
+    };
+
+    /**
+    * @brief Converts a LogConfig::Config object into a database-specific connection string
+    * @param config Configuration object containing database connection parameters
+    * @return std::string Formatted connection string appropriate for the specified database type
+    *
+    * @throws std::runtime_error If:
+    *         - Database type is not specified in config
+    *         - Unsupported database type is requested
+    *
+    * @note Connection string format varies by database type:
+    *       - Mock/SQLite: Returns just the database name (or empty string)
+    *       - MySQL: "host=value;user=value;password=value" format
+    *       - PostgreSQL: "host=value user=value password=value" format (space-separated)
+    *       - MongoDB: "host=value;user=value;password=value" format
+    *
+    * @warning All parameters are optional except databaseType. Missing parameters will be omitted
+    *          from the connection string which may cause connection failures.
+    *
+    * @see LogConfig::Config
+    * @see DataBaseType
+    * @see StringHelper::join()
+    */
+    std::string configToConnectionString(const Config& config)
+    {
+        if (!config.databaseType.has_value())
+        {
+            throw std::runtime_error("Database type is not specified in config");
+        }
+
+        switch (config.databaseType.value())
+        {
+        case DataBaseType::Mock:
+            return config.databaseName.value_or("");
+            break;
+
+        case DataBaseType::SQLite:
+            return config.databaseName.value_or("");
+            break;
+
+        case DataBaseType::MySQL:
+        {
+            std::vector<std::string> parts;
+            if (config.databaseHost.has_value())
+                parts.emplace_back(std::string(CON_STR_HOST) + "=" + config.databaseHost.value());
+            if (config.databaseUser.has_value())
+                parts.emplace_back(std::string(CON_STR_USER) + "=" + config.databaseUser.value());
+            if (config.databasePass.has_value())
+                parts.emplace_back(std::string(CON_STR_PASS) + "=" + config.databasePass.value());
+            if (config.databaseName.has_value())
+                parts.emplace_back(std::string(CON_STR_DB) + "=" + config.databaseName.value());
+            if (config.databasePort.has_value())
+                parts.emplace_back(std::string(CON_STR_PORT) + "=" + std::to_string(config.databasePort.value()));
+
+            return StringHelper::join(parts, ";");
+        }
+        break;
+
+        case DataBaseType::PostgreSQL:
+        {
+            std::vector<std::string> parts;
+            if (config.databaseHost.has_value())
+                parts.emplace_back("host=" + config.databaseHost.value());
+            if (config.databaseUser.has_value())
+                parts.emplace_back("user=" + config.databaseUser.value());
+            if (config.databasePass.has_value())
+                parts.emplace_back("password=" + config.databasePass.value());
+            if (config.databaseName.has_value())
+                parts.emplace_back("dbname=" + config.databaseName.value());
+            if (config.databasePort.has_value())
+                parts.emplace_back("port=" + std::to_string(config.databasePort.value()));
+
+            return StringHelper::join(parts, " ");
+        }
+        break;
+
+        case DataBaseType::MongoDB:
+        {
+            std::vector<std::string> parts;
+            if (config.databaseHost.has_value())
+                parts.emplace_back("host=" + config.databaseHost.value());
+            if (config.databaseUser.has_value())
+                parts.emplace_back("user=" + config.databaseUser.value());
+            if (config.databasePass.has_value())
+                parts.emplace_back("password=" + config.databasePass.value());
+            if (config.databaseName.has_value())
+                parts.emplace_back("database=" + config.databaseName.value());
+            if (config.databasePort.has_value())
+                parts.emplace_back("port=" + std::to_string(config.databasePort.value()));
+
+            return StringHelper::join(parts, ";");
+        }
+        break;
+
+        default:
+            throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
+        }
     };
 };
 

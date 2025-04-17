@@ -30,7 +30,7 @@
 SQLiteDatabase::SQLiteDatabase(const std::string& dbPath) : dbPath(dbPath), db(nullptr)
 {
     std::string errMsg;
-    if(!FSHelper::CreateDir(dbPath, errMsg))
+    if(!FSHelper::createDir(dbPath, errMsg))
     {
         throw std::runtime_error(ERR_MSG_FAILED_CREATE_DIR + errMsg);
     }

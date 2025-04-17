@@ -28,7 +28,7 @@
  * False otherwise.
 */
 
-bool FSHelper::CreateDir(const std::string& path, std::string& errMsg)
+bool FSHelper::createDir(const std::string& path, std::string& errMsg)
 {
     std::filesystem::path dir(path);
     dir = std::filesystem::absolute(dir);

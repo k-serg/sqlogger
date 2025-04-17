@@ -37,7 +37,7 @@ namespace FSHelper
      * @return bool True, if path created or already exists.
      * False otherwise.
     */
-    bool CreateDir(const std::string& path, std::string& errMsg = std::string());
+    bool createDir(const std::string& path, std::string& errMsg = std::string());
 };
 
 #endif // !FS_HELPER_H

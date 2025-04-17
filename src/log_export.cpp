@@ -203,7 +203,7 @@ void LogExport::exportToYAML(const std::string& filePath, const LogEntryList& en
 void LogExport::exportTo(const std::string& filePath, const Format& format, const LogEntryList& entryList, const std::string& delimiter, bool name)
 {
     std::string errMsg;
-    if(!FSHelper::CreateDir(filePath, errMsg))
+    if(!FSHelper::createDir(filePath, errMsg))
     {
         throw std::runtime_error(ERR_MSG_FAILED_CREATE_DIR + errMsg);
     }

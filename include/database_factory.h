@@ -49,28 +49,22 @@ class DatabaseFactory
 {
     public:
         /**
-        * @brief Creates a database instance of the specified type
-        * @param type The type of database to create (see DataBaseType enum)
-        * @param connectionString Connection string/parameters for the database
-        * @return std::unique_ptr<IDatabase> Pointer to the created database instance
+        * @brief Creates a database instance of the specified type.
+        * @param type The type of database to create (see DataBaseType enum).
+        * @param connectionString Connection string/parameters for the database.
+        * @return std::unique_ptr<IDatabase> Pointer to the created database instance.
         *
-        * @throws std::invalid_argument If unsupported database type is requested
-        *
-        * @example
-        * // Create SQLite database
-        * auto db = DatabaseFactory::create(DataBaseType::SQLite, "logs.db");
-        *
-        * // Create mock database (for testing)
-        * auto mockDb = DatabaseFactory::create(DataBaseType::Mock);
+        * @throws std::invalid_argument If unsupported database type is requested.
         *
         * @note The actual available database types depend on compile-time definitions:
         *  - USE_MYSQL for MySQL support
         *  - USE_POSTGRESQL for PostgreSQL support
         *
         * @warning Connection string format is database-specific
-        * @see DataBaseType for supported database types
+        * @see DataBaseType for supported database types.
+        * @see LogConfig::configToConnectionString() to converts a LogConfig::Config object into a database-specific connection string.
         */
-        static std::unique_ptr<IDatabase> create(DataBaseType type, const std::string& connectionString);
+        static std::unique_ptr<IDatabase> create(const DataBaseType& type, const std::string& connectionString);
 };
 
 #endif // !DATABASE_FACTORY_H
