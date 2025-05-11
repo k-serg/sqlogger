@@ -20,7 +20,7 @@
 #include "postgresql_database.h"
 #include <sstream>
 #include <iostream>
-#include <libpq-fe.h>
+//#include <libpq-fe.h>
 
 /**
  * @brief Constructs PostgreSQL database connection handler
@@ -102,11 +102,30 @@ bool PostgreSQLDatabase::isConnected() const
 }
 
 /**
- * @brief Executes SQL query without result set
- * @param query SQL query to execute
- * @return true if query executed successfully
- */
-bool PostgreSQLDatabase::execute(const std::string& query)
+* @brief Executes an SQL query with optional parameters and returns affected row count
+*
+* @param query The SQL query to execute. Can contain parameter placeholders
+* @param params Vector of parameter values to bind to the query (default empty)
+* @param affectedRows Optional pointer to store number of affected rows (default nullptr)
+* @return true if query executed successfully
+* @return false if execution failed (check getLastError() for details)
+*
+* @note For parameterized queries:
+* - MySQL/SQLite use '?' placeholders
+* - PostgreSQL uses '$1', '$2', etc. placeholders
+* - Parameters are bound in order they appear in the query
+*
+* @note The affectedRows parameter will contain:
+* - For INSERT/UPDATE/DELETE: Number of rows modified
+* - For other statements: 0 or implementation-defined value
+* - Only updated if pointer is not null
+*
+* @see getLastError()
+*/
+bool PostgreSQLDatabase::execute(
+    const std::string& query,
+    const std::vector<std::string> & params,
+    int* affectedRows)
 {
     if(!isConnected())
     {
@@ -115,10 +134,31 @@ bool PostgreSQLDatabase::execute(const std::string& query)
     }
 
     lastError.clear();
-    PGresult* res = PQexec(conn, query.c_str());
+
+    // Convert params to array of C strings
+    std::vector<const char*> paramValues(params.size());
+    for(size_t i = 0; i < params.size(); ++i)
+    {
+        paramValues[i] = params[i].c_str();
+    }
+
+    PGresult* res = PQexecParams(conn,
+                                 query.c_str(),
+                                 params.size(),
+                                 nullptr,  // let PostgreSQL infer param types
+                                 paramValues.data(),
+                                 nullptr,  // param lengths (null means strings are null-terminated)
+                                 nullptr,  // param formats (0=text, 1=binary)
+                                 0);       // result format (0=text, 1=binary)
 
     bool success = (PQresultStatus(res) == PGRES_COMMAND_OK ||
-                    (PQresultStatus(res) == PGRES_TUPLES_OK));
+                    PQresultStatus(res) == PGRES_TUPLES_OK);
+
+    if(success && affectedRows)
+    {
+        char* countStr = PQcmdTuples(res);
+        * affectedRows = countStr[0] ? std::stoi(countStr) : 0;
+    }
 
     if(!success)
     {
@@ -130,11 +170,13 @@ bool PostgreSQLDatabase::execute(const std::string& query)
 }
 
 /**
- * @brief Executes SQL query and returns result set
- * @param query SQL query to execute
- * @return Vector of rows, where each row is a map of column-value pairs
+ * @brief Executes an SQL query and returns the result.
+ * @param query The SQL query to execute.
+ * @param params The parameters to bind to the query.
+ * @return A vector of maps representing the query result.
  */
-std::vector<std::map<std::string, std::string>> PostgreSQLDatabase::query(const std::string& query)
+std::vector<std::map<std::string, std::string>> PostgreSQLDatabase::query(const std::string& query,
+        const std::vector<std::string> & params)
 {
     std::vector<std::map<std::string, std::string>> result;
     if(!isConnected())
@@ -144,7 +186,22 @@ std::vector<std::map<std::string, std::string>> PostgreSQLDatabase::query(const 
     }
 
     lastError.clear();
-    PGresult* res = PQexec(conn, query.c_str());
+
+    // Convert params to array of C strings
+    std::vector<const char*> paramValues(params.size());
+    for(size_t i = 0; i < params.size(); ++i)
+    {
+        paramValues[i] = params[i].c_str();
+    }
+
+    PGresult* res = PQexecParams(conn,
+                                 query.c_str(),
+                                 params.size(),
+                                 nullptr,  // let PostgreSQL infer param types
+                                 paramValues.data(),
+                                 nullptr,  // param lengths (null means strings are null-terminated)
+                                 nullptr,  // param formats (0=text, 1=binary)
+                                 0);       // result format (0=text, 1=binary)
 
     if(PQresultStatus(res) != PGRES_TUPLES_OK)
     {
@@ -167,79 +224,8 @@ std::vector<std::map<std::string, std::string>> PostgreSQLDatabase::query(const 
     }
 
     PQclear(res);
+
     return result;
-}
-
-/**
- * @brief Executes parameterized SQL query
- * @param query SQL query with placeholders (?)
- * @param params Vector of parameter values
- * @return true if query executed successfully
- */
-bool PostgreSQLDatabase::executeWithParams(const std::string& query,
-        const std::vector<std::string> & params)
-{
-    if(!isConnected())
-    {
-        lastError = ERR_MSG_FAILED_NOT_CONNECTED_DB;
-        return false;
-    }
-
-    lastError.clear();
-    std::vector<const char*> paramValues(params.size());
-    for(size_t i = 0; i < params.size(); ++i)
-    {
-        paramValues[i] = params[i].c_str();
-    }
-
-    PGresult* res = PQexecParams(conn, query.c_str(),
-                                 params.size(),
-                                 nullptr,
-                                 paramValues.data(),
-                                 nullptr,
-                                 nullptr,
-                                 0);
-
-    bool success = (PQresultStatus(res) == PGRES_COMMAND_OK ||
-                    (PQresultStatus(res) == PGRES_TUPLES_OK));
-
-    if(!success)
-    {
-        lastError = PQerrorMessage(conn);
-    }
-
-    PQclear(res);
-    return success;
-}
-
-/**
- * @brief Executes SQL query and returns affected row count
- * @param query SQL query to execute
- * @return Number of affected rows or -1 on error
- */
-int PostgreSQLDatabase::executeWithRowCount(const std::string& query)
-{
-    if(!isConnected())
-    {
-        lastError = ERR_MSG_FAILED_NOT_CONNECTED_DB;
-        return -1;
-    }
-
-    lastError.clear();
-    PGresult* res = PQexec(conn, query.c_str());
-
-    if(PQresultStatus(res) != PGRES_COMMAND_OK)
-    {
-        lastError = PQerrorMessage(conn);
-        PQclear(res);
-        return -1;
-    }
-
-    char* countStr = PQcmdTuples(res);
-    int rowCount = countStr[0] ? std::stoi(countStr) : 0;
-
-    PQclear(res);
-    return rowCount;
 }
 
 /**

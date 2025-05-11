@@ -21,6 +21,7 @@
 #define DATABASE_HELPER_H
 
 #include <string>
+#include <optional>
 #include "log_entry.h"
 
 #define DB_TYPE_STR_MOCK "Mock"
@@ -44,79 +45,170 @@ enum class DataBaseType
     MongoDB       /**< MongoDB database. */
 };
 
+/**
+ * @enum ValueType
+ * @brief Determines how values should be formatted
+ */
+enum class ValueType
+{
+    Auto,    /**< Automatically detect value type */
+    String,  /**< Always treat as string */
+    Number   /**< Always treat as number */
+};
+
+/**
+ * @namespace DataBaseHelper
+ * @brief Provides utility functions for database operations
+ */
 namespace DataBaseHelper
 {
-
     /**
      * @brief Converts a string representation of a database type to the corresponding enum value.
      * @param stringType The string representation of the database type.
      * @return The corresponding DataBaseType enum value.
      */
-    static DataBaseType stringToDatabaseType(const std::string& stringType)
-    {
-        if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MOCK)) return DataBaseType::Mock;
-        if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_SQLITE)) return DataBaseType::SQLite;
-        if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MYSQL)) return DataBaseType::MySQL;
-        if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_POSTGRESQL)) return DataBaseType::PostgreSQL;
-        if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MONGODB)) return DataBaseType::MongoDB;
-        // return DataBaseType::Unknown;
-        throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
-    };
+    DataBaseType stringToDatabaseType(const std::string& stringType);
 
     /**
      * @brief Converts a DataBaseType enum value to its string representation.
      * @param type The DataBaseType enum value.
      * @return The string representation of the database type.
      */
-    static std::string databaseTypeToString(const DataBaseType& type)
-    {
-        switch(type)
-        {
-            case DataBaseType::Mock:
-                return DB_TYPE_STR_MOCK;
-                break;
-            case DataBaseType::SQLite:
-                return DB_TYPE_STR_SQLITE;
-                break;
-            case DataBaseType::MySQL:
-                return DB_TYPE_STR_MYSQL;
-                break;
-            case DataBaseType::PostgreSQL:
-                return DB_TYPE_STR_POSTGRESQL;
-                break;
-            default:
-                throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
-                // return DB_TYPE_STR_UNKNOWN;
-                break;
-        }
-    };
+    std::string databaseTypeToString(const DataBaseType& type);
 
     /**
      * @brief Escapes backslashes in a string.
      * @param input The input string to escape.
      * @return The string with escaped backslashes.
      */
-    static std::string escapeBackslashes(const std::string& input)
-    {
-        std::string result;
-        for(size_t i = 0; i < input.size(); ++i)
-        {
-            if(input[i] == '\\')
-            {
-                if(i + 1 < input.size() && input[i + 1] == '\\')
-                {
-                    result += '\\';
-                    ++i;
-                }
-                else
-                {
-                    result += '\\';
-                }
-            }
-            result += input[i];
-        }
-        return result;
-    }
+    std::string escapeBackslashes(const std::string& input);
+
+    /**
+    * @brief Checks if a connection string follows URI format.
+    *
+    * @param connectionString The connection string to validate
+    * @return true if the string matches standard URI format (scheme://[authority][path][?query]),
+    *         false otherwise
+    *
+    * @details Validates the basic URI structure:
+    *          - Must contain "://" separator
+    *          - Scheme (before ://) must consist of alphanumeric chars + '+'/'.'/'-'
+    *          - Minimal valid example: "scheme://"
+    *
+    * @note Does not validate the URI components beyond basic format checking.
+    * @note Returns false for empty strings or strings without ://
+    *
+    * @example isUriFormat("mysql://user@host:3306/db") → true
+    * @example isUriFormat("host=localhost;port=3306") → false
+    * @example isUriFormat("sqlite:/path/to/file.db") → false (missing //)
+    */
+    bool isUriFormat(const std::string& connectionString);
+
+    /**
+    * @brief Parses a key-value pair from a delimited string.
+    *
+    * @param str The input string containing key-value pairs (e.g., "host=localhost;port=3306")
+    * @param key The key to search for in the string (e.g., "host")
+    * @param delimiter The character that separates key-value pairs (e.g., ';' or ' ')
+    * @return std::optional<std::string> The value associated with the key if found, std::nullopt otherwise
+    *
+    * @details The method searches through the string for segments separated by the delimiter,
+    *          then looks for the specified key followed by an equals sign ('='). If found,
+    *          it returns the portion after the equals sign.
+    *
+    * @note The comparison between keys is exact (case-sensitive).
+    * @note If multiple segments contain the same key, only the first occurrence is returned.
+    * @note The delimiter character cannot appear in the key or value portions.
+    * @note Empty values (e.g., "key=") will return an empty string (not std::nullopt).
+    *
+    * @example parseKeyValueString("host=localhost;port=3306", "port", ';') returns "3306"
+    * @example parseKeyValueString("name=John age=30", "age", ' ') returns "30"
+    */
+    std::optional<std::string> parseKeyValueString(
+        const std::string& str,
+        const std::string& key,
+        char delimiter);
+
+    /**
+    * @brief Helper to extract parameters from query string (after ?)
+    * @param query The query string (e.g. "ssl=true&timeout=10")
+    * @param param Parameter name to find
+    * @return std::optional<std::string> Extracted value or std::nullopt
+    */
+    std::optional<std::string> extractFromQueryString(
+        const std::string& query,
+        const std::string& param);
+
+    /**
+     * @brief Extracts a specific parameter from a database URI string.
+     *
+     * @param uri The connection URI string (e.g., "mysql://user:pass@host:port/dbname?options")
+     * @param paramName The parameter to extract. Supported values:
+     *                 - Common parameters: "host", "port", "user", "password"
+     *                 - Database-specific: "dbname", "mode" (SQLite), "charset" (MySQL),
+     *                   "sslmode" (PostgreSQL), "options" (MongoDB)
+     * @param dbType The database type (SQLite, MySQL, PostgreSQL, MongoDB)
+     * @return std::optional<std::string> Extracted value if found, std::nullopt otherwise
+     *
+     * @details Parses standard URI components:
+     *          - scheme://[user[:password]@]host[:port][/dbname][?options]
+     *          - Handles special cases for different database types
+     *
+     * @note For MongoDB:
+     *       - "dbname" defaults to "test" if not specified
+     *       - "options" returns the entire query string after '?'
+     * @note For SQLite:
+     *       - "dbname" returns the path portion
+     *       - "mode" extracts from query parameters
+     * @note Returns std::nullopt for:
+     *       - Malformed URIs (missing ://)
+     *       - Unsupported parameter/database combinations
+     *
+     * @example extractParamFromUriParam("mysql://user:pass@localhost:3306/db", "host", MySQL)
+     *          returns "localhost"
+     * @example extractParamFromUriParam("sqlite:///path.db?mode=rw", "mode", SQLite)
+     *          returns "rw"
+     */
+    std::optional<std::string> extractParamFromUriParam(
+        const std::string& uri,
+        const std::string& paramName,
+        DataBaseType dbType);
+
+    /**
+    * @brief Extracts a specific parameter from a database connection string.
+    *
+    * @param connectionString The connection string to parse. Format varies by database type:
+    *                        - SQLite: Direct filename/path
+    *                        - MySQL: "host=...;port=...;user=...;password=...;dbname=..."
+    *                        - PostgreSQL: "host=... port=... user=... password=... dbname=..."
+    *                        - MongoDB: Either URI format ("mongodb://...") or key-value pairs
+    * @param paramName The name of the parameter to extract (e.g., "host", "port", "user", "password", "dbname")
+    * @param dbType The type of database (SQLite, MySQL, PostgreSQL, MongoDB)
+    * @return std::optional<std::string> The extracted parameter value if found, std::nullopt otherwise
+    *
+    * @throws std::invalid_argument If the database type is unsupported
+    *
+    * @note For SQLite:
+    *       - Only "dbname" parameter is supported, which returns the entire connection string
+    *       - Other parameter names will return std::nullopt
+    *
+    * @note For MySQL:
+    *       - Parses semicolon-separated key-value pairs (e.g., "host=localhost;port=3306")
+    *       - Parameter names are case-sensitive
+    *
+    * @note For PostgreSQL:
+    *       - Parses space-separated key-value pairs (e.g., "host=localhost port=5432")
+    *       - Parameter names are case-sensitive
+    *
+    * @note For MongoDB:
+    *       - First checks if the connection string is in URI format (mongodb://...)
+    *       - If not URI format, falls back to semicolon-separated key-value pairs
+    *       - Special handling for "dbname" which defaults to "test" if not specified in URI
+    */
+    std::optional<std::string> extractParamFromConnectionString(
+        const std::string& connectionString,
+        const std::string& paramName,
+        DataBaseType dbType);
 };
 
 #endif // !DATABASE_HELPER_H

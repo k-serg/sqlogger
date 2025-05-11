@@ -68,33 +68,39 @@ class SQLiteDatabase : public IDatabase
         bool isConnected() const override;
 
         /**
-         * @brief Executes an SQL query.
-         * @param query The SQL query to execute.
-         * @return True if the query was executed successfully, false otherwise.
-         */
-        bool execute(const std::string& query) override;
+        * @brief Executes an SQL query with optional parameters and returns affected row count
+        *
+        * @param query The SQL query to execute. Can contain parameter placeholders
+        * @param params Vector of parameter values to bind to the query (default empty)
+        * @param affectedRows Optional pointer to store number of affected rows (default nullptr)
+        * @return true if query executed successfully
+        * @return false if execution failed (check getLastError() for details)
+        *
+        * @note For parameterized queries:
+        * - MySQL/SQLite use '?' placeholders
+        * - PostgreSQL uses '$1', '$2', etc. placeholders
+        * - Parameters are bound in order they appear in the query
+        *
+        * @note The affectedRows parameter will contain:
+        * - For INSERT/UPDATE/DELETE: Number of rows modified
+        * - For other statements: 0 or implementation-defined value
+        * - Only updated if pointer is not null
+        *
+        * @see getLastError()
+        */
+        bool execute(
+            const std::string& query,
+            const std::vector<std::string> & params = {},
+            int* affectedRows = nullptr) override;
 
         /**
-         * @brief Executes an SQL query and returns the result.
-         * @param query The SQL query to execute.
-         * @return A vector of maps representing the query result.
-         */
-        std::vector<std::map<std::string, std::string>> query(const std::string& query) override;
-
-        /**
-         * @brief Prepares and executes an SQL query with parameters.
-         * @param query The SQL query to execute.
-         * @param params The parameters to bind to the query.
-         * @return True if the query was executed successfully, false otherwise.
-         */
-        bool executeWithParams(const std::string& query, const std::vector<std::string> & params) override;
-
-        /**
-         * @brief Executes an SQL query and returns the number of affected rows.
-         * @param query The SQL query to execute.
-         * @return The number of affected rows, or -1 if an error occurred.
-         */
-        int executeWithRowCount(const std::string& query) override;
+        * @brief Executes an SQL query and returns the result.
+        * @param query The SQL query to execute.
+        * @param params The parameters to bind to the query.
+        * @return A vector of maps representing the query result.
+        */
+        std::vector<std::map<std::string, std::string>> query(const std::string& query,
+                const std::vector<std::string> & params = {}) override;
 
         /**
          * @brief Begins a transaction.

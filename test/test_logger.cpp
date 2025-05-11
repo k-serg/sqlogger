@@ -722,7 +722,7 @@ void testErrorHandling()
 
     // Simulate an error in the real database
     // For example, try to insert into a non-existent table
-    bool success = database->executeWithParams("INSERT INTO non_existent_table (message) VALUES (?)", { "Test message" });
+    bool success = database->execute("INSERT INTO non_existent_table (message) VALUES (?)", { "Test message" });
     if(!success)
     {
         // Ensure the error is logged
@@ -1177,6 +1177,7 @@ int main()
     try
     {
         testEncryptDecrypt();
+        testConfigSaveLoad();
         testBasicFunctionality();
         testFilterByLevel();
         testFilterByFunction();
@@ -1193,7 +1194,6 @@ int main()
         //testErrorHandling(); // TODO:
         testMultiThread();
         testFileExport();
-        testConfigSaveLoad();
         testClearLogs();
         testPerformance();
         testMultiConnectionStress();

@@ -80,7 +80,7 @@ class ThreadPool
         std::condition_variable completionCondition;
 
         std::atomic<bool> stop; /**< Flag to stop the ThreadPool. */
-        std::atomic<size_t> tasksInProgress; // Количество задач в процессе выполнения
+        std::atomic<size_t> tasksInProgress;
 };
 
 #endif // THREAD_POOL_H

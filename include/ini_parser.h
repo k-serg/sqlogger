@@ -27,9 +27,31 @@
 #include <stdexcept>
 #include "log_strings.h"
 
+/**
+ * @namespace INI
+ * @brief Provides functionality for reading and writing INI configuration files.
+ *
+ * @details This namespace contains utilities for parsing INI files into a nested map structure
+ * and writing data back to INI format. It supports standard INI file format with sections,
+ * key-value pairs, and basic type conversion.
+ *
+ * The INI format structure follows:
+ * - Sections marked with [section_name]
+ * - Key-value pairs in format key=value
+ * - Comments starting with ; or #
+ * - Empty lines are ignored
+ *
+ * @example
+ * // Example INI file content:
+ * // [Database]
+ * // host=localhost
+ * // port=3306
+ * //
+ * // [Logging]
+ * // level=DEBUG
+ */
 namespace INI
 {
-
     // Alias for a nested map representing INI data
     using INIData = std::map<std::string, std::map<std::string, std::string>>;
 
@@ -38,7 +60,10 @@ namespace INI
      *
      * @param filename The path to the INI file.
      * @return INIData A map where the key is the section name, and the value is a map of key-value pairs.
-     * @throws std::runtime_error If the file cannot be opened.
+     * @throws std::runtime_error If the file cannot be opened or contains malformed data.
+     * @note Leading/trailing whitespace is automatically trimmed from section names, keys and values
+     * @note Empty sections are preserved in the returned structure
+     * @note Duplicate keys in the same section will overwrite previous values
      */
     INIData parse(const std::string& filename);
 
@@ -48,9 +73,12 @@ namespace INI
      * @param filename The path to the INI file.
      * @param data INIData A map where the key is the section name, and the value is a map of key-value pairs.
      * @throws std::runtime_error If the file cannot be opened for writing.
+     * @note Sections will be written in alphabetical order
+     * @note Keys within each section will be written in alphabetical order
+     * @note Empty sections will be written as [section] with no key-value pairs
+     * @note Special characters (=, ;, #) in values will be properly escaped
      */
     void write(const std::string& filename, const INIData& data);
-
 };
 
 #endif // INI_PARSER_H

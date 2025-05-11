@@ -74,9 +74,21 @@ namespace StringHelper
      * @param delimiter The string to insert between joined parts
      * @return std::string The resulting concatenated string
      */
-    std::string join(const std::vector<std::string>& parts, const std::string& delimiter);
+    std::string join(const std::vector<std::string> & parts, const std::string& delimiter);
 };
 
+/**
+ * @namespace LogConfig
+ * @brief Provides configuration management for the logging system
+ *
+ * @details This namespace contains all types and functions related to logger configuration,
+ * including loading/saving settings from INI files, managing database connections,
+ * and handling security-sensitive parameters.
+ *
+ * @see Config for the main configuration structure
+ * @see DataBaseType for supported database types
+ * @see INI namespace for file format details
+ */
 namespace LogConfig
 {
     /**

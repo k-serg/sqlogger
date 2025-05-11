@@ -58,6 +58,7 @@
 #ifdef USE_SOURCE_INFO
     #define SOURCES_TABLE_NAME "sources"
     #define FIELD_SOURCES_ID "id"
+    #define FIELD_SOURCES_SOURCE_ID "source_id"
     #define FIELD_SOURCES_UUID "uuid"
     #define FIELD_SOURCES_NAME "name"
 #endif
@@ -121,6 +122,16 @@ enum class LogLevel
     Fatal
 };
 
+/**
+ * @namespace LogHelper
+ * @brief Provides utility functions for logging operations
+ *
+ * @details This namespace contains various helper functions that support core logging functionality,
+ * including log level conversions, timestamp handling, thread management, and string transformations.
+ *
+ * @see LogLevel for log level enumeration
+ * @see TIMESTAMP_FMT for default timestamp format
+ */
 namespace LogHelper
 {
 
@@ -137,6 +148,31 @@ namespace LogHelper
     };
 
 #endif
+
+    /**
+    * @brief Checks if std::string represents a numeric value
+    * @param value std::string to check
+    * @return True if numeric, false otherwise
+    */
+    static bool isNumeric(const std::string& value)
+    {
+        if(value.empty()) return false;
+        size_t start = (value[0] == '-') ? 1 : 0;
+        bool has_dot = false;
+
+        for(size_t i = start; i < value.size(); ++i)
+        {
+            if(value[i] == '.' && !has_dot)
+            {
+                has_dot = true;
+            }
+            else if(!std::isdigit(value[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    };
 
     /**
      * @brief Transform string into upper case. ASCII-only.
@@ -177,6 +213,32 @@ namespace LogHelper
     };
 
     /**
+    * @brief Converts a log level to its integer representation.
+    * @param level The log level to convert.
+    * @return The integer representation of the log level.
+    */
+    static int levelToInt(LogLevel level)
+    {
+        switch(level)
+        {
+            case LogLevel::Trace:
+                return static_cast<int>(LogLevel::Trace);
+            case LogLevel::Debug:
+                return static_cast<int>(LogLevel::Debug);
+            case LogLevel::Info:
+                return static_cast<int>(LogLevel::Info);
+            case LogLevel::Warning:
+                return static_cast<int>(LogLevel::Warning);
+            case LogLevel::Error:
+                return static_cast<int>(LogLevel::Error);
+            case LogLevel::Fatal:
+                return static_cast<int>(LogLevel::Fatal);
+            default:
+                return static_cast<int>(LogLevel::Unknown);
+        }
+    };
+
+    /**
      * @brief Converts a string to a log level.
      * @param levelStr The string representation of the log level.
      * @return The corresponding log level.
@@ -190,6 +252,27 @@ namespace LogHelper
         if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_ERROR) return LogLevel::Error;
         if((ignoreCase ? toUpperCase(levelStr) : levelStr) == LOG_LEVEL_FATAL) return LogLevel::Fatal;
         return LogLevel::Unknown;
+    };
+
+    /**
+     * @brief Converts a int to a log level.
+     * @param levelInt The integer representation of the log level.
+     * @return The corresponding log level.
+     */
+    static LogLevel intToLevel(const int levelInt)
+    {
+        switch(levelInt)
+        {
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+                return static_cast<LogLevel>(levelInt);
+            default:
+                return LogLevel::Unknown;
+        }
     };
 
     /**

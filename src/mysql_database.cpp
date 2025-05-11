@@ -189,97 +189,90 @@ bool MySQLDatabase::isConnected() const
 }
 
 /**
- * @brief Executes an SQL query.
- * @param query The SQL query to execute.
- * @return True if the query was executed successfully, false otherwise.
- */
-bool MySQLDatabase::execute(const std::string& query)
+* @brief Executes an SQL query with optional parameters and returns affected row count
+*
+* @param query The SQL query to execute. Can contain parameter placeholders
+* @param params Vector of parameter values to bind to the query (default empty)
+* @param affectedRows Optional pointer to store number of affected rows (default nullptr)
+* @return true if query executed successfully
+* @return false if execution failed (check getLastError() for details)
+*
+* @note For parameterized queries:
+* - MySQL/SQLite use '?' placeholders
+* - PostgreSQL uses '$1', '$2', etc. placeholders
+* - Parameters are bound in order they appear in the query
+*
+* @note The affectedRows parameter will contain:
+* - For INSERT/UPDATE/DELETE: Number of rows modified
+* - For other statements: 0 or implementation-defined value
+* - Only updated if pointer is not null
+*
+* @see getLastError()
+*/
+bool MySQLDatabase::execute(
+    const std::string& query,
+    const std::vector<std::string> & params,
+    int* affectedRows)
 {
-    if(mysql_query(conn, query.c_str()) != 0)
+    if(params.empty())
     {
-        return false;
-    }
-    return true;
-}
-
-/**
- * @brief Executes an SQL query and returns the result.
- * @param query The SQL query to execute.
- * @return A vector of maps representing the query result.
- */
-std::vector<std::map<std::string, std::string>> MySQLDatabase::query(const std::string& query)
-{
-    std::vector<std::map<std::string, std::string>> result;
-
-    const std::string escapedQuery = DataBaseHelper::escapeBackslashes(query);
-
-    if(mysql_query(conn, escapedQuery.c_str()) != 0)
-    {
-        return result;
-    }
-
-    MYSQL_RES* res = mysql_store_result(conn);
-    if(!res)
-    {
-        return result;
-    }
-
-    int numFields = mysql_num_fields(res);
-    MYSQL_ROW row;
-
-    while((row = mysql_fetch_row(res)))
-    {
-        std::map<std::string, std::string> rowData;
-        for(int i = 0; i < numFields; ++i)
+        // Simple query execution without parameters
+        if(mysql_query(conn, query.c_str()))
         {
-            MYSQL_FIELD* field = mysql_fetch_field_direct(res, i);
-            rowData[field->name] = row[i] ? row[i] : "NULL";
+            return false;
         }
-        result.push_back(rowData);
+
+        if(affectedRows)
+        {
+            * affectedRows = mysql_affected_rows(conn);
+        }
+        return true;
     }
 
-    mysql_free_result(res);
-    return result;
-}
-
-/**
- * @brief Prepares and executes an SQL query with parameters.
- * @param query The SQL query to execute.
- * @param params The parameters to bind to the query.
- * @return True if the query was executed successfully, false otherwise.
- */
-bool MySQLDatabase::executeWithParams(const std::string& query, const std::vector<std::string> & params)
-{
+    // Parameterized query execution
     MYSQL_STMT* stmt = mysql_stmt_init(conn);
     if(!stmt)
     {
         return false;
     }
 
-    if(mysql_stmt_prepare(stmt, query.c_str(), query.size()) != 0)
+    if(mysql_stmt_prepare(stmt, query.c_str(), query.size()))
     {
         mysql_stmt_close(stmt);
         return false;
     }
 
+    // Bind parameters
     std::vector<MYSQL_BIND> binds(params.size());
+    std::vector<std::vector<char>> buffers(params.size());
+
     for(size_t i = 0; i < params.size(); ++i)
     {
+        buffers[i].assign(params[i].begin(), params[i].end());
+        buffers[i].push_back('\0');
+
         binds[i].buffer_type = MYSQL_TYPE_STRING;
-        binds[i].buffer = const_cast<char*>(params[i].c_str());
-        binds[i].buffer_length = params[i].size();
+        binds[i].buffer = buffers[i].data();
+        binds[i].buffer_length = params[i].length();
+        binds[i].is_null = nullptr;
+        binds[i].length = & binds[i].buffer_length;
     }
 
-    if(mysql_stmt_bind_param(stmt, binds.data()) != 0)
+    if(mysql_stmt_bind_param(stmt, binds.data()))
     {
         mysql_stmt_close(stmt);
         return false;
     }
 
-    if(mysql_stmt_execute(stmt) != 0)
+    if(mysql_stmt_execute(stmt))
     {
         mysql_stmt_close(stmt);
         return false;
+    }
+
+    if(affectedRows)
+    {
+        * affectedRows = mysql_stmt_affected_rows(stmt);
     }
 
     mysql_stmt_close(stmt);
@@ -287,17 +280,142 @@ bool MySQLDatabase::executeWithParams(const std::string& query, const std::vecto
 }
 
 /**
- * @brief Executes an SQL query and returns the number of affected rows.
+ * @brief Executes an SQL query and returns the result.
  * @param query The SQL query to execute.
- * @return The number of affected rows, or -1 if an error occurred.
+ * @param params The parameters to bind to the query.
+ * @return A vector of maps representing the query result.
  */
-int MySQLDatabase::executeWithRowCount(const std::string& query)
+std::vector<std::map<std::string, std::string>> MySQLDatabase::query(
+    const std::string& query,
+    const std::vector<std::string> & params)
 {
-    if(mysql_query(conn, query.c_str()) != 0)
+    std::vector<std::map<std::string, std::string>> result;
+
+    if(!params.empty())
     {
-        return -1;
+        MYSQL_STMT* stmt = mysql_stmt_init(conn);
+        if(!stmt)
+        {
+            return result;
+        }
+
+        if(mysql_stmt_prepare(stmt, query.c_str(), query.size()) != 0)
+        {
+            mysql_stmt_close(stmt);
+            return result;
+        }
+
+        // Bind parameters
+        std::vector<MYSQL_BIND> binds(params.size());
+        std::vector<std::vector<char>> buffers(params.size());
+
+        for(size_t i = 0; i < params.size(); ++i)
+        {
+            buffers[i].assign(params[i].begin(), params[i].end());
+            buffers[i].push_back('\0');
+
+            binds[i].buffer_type = MYSQL_TYPE_STRING;
+            binds[i].buffer = buffers[i].data();
+            binds[i].buffer_length = params[i].length();
+            binds[i].is_null = nullptr;
+            binds[i].length = & binds[i].buffer_length;
+        }
+
+        if(mysql_stmt_bind_param(stmt, binds.data()) != 0)
+        {
+            mysql_stmt_close(stmt);
+            return result;
+        }
+
+        if(mysql_stmt_execute(stmt) != 0)
+        {
+            mysql_stmt_close(stmt);
+            return result;
+        }
+
+        // Store result to enable row counting
+        if(mysql_stmt_store_result(stmt) != 0)
+        {
+            mysql_stmt_close(stmt);
+            return result;
+        }
+
+        MYSQL_RES* meta = mysql_stmt_result_metadata(stmt);
+        if(!meta)
+        {
+            mysql_stmt_close(stmt);
+            return result;
+        }
+
+        int numFields = mysql_num_fields(meta);
+        std::vector<MYSQL_BIND> result_binds(numFields);
+        std::vector<std::vector<char>> result_buffers(numFields);
+        std::vector<unsigned long> lengths(numFields);
+
+        MYSQL_FIELD* fields = mysql_fetch_fields(meta);
+        for(int i = 0; i < numFields; ++i)
+        {
+            result_buffers[i].resize(fields[i].max_length > 0 ? fields[i].max_length + 1 : 256);
+
+            result_binds[i].buffer_type = MYSQL_TYPE_STRING;
+            result_binds[i].buffer = result_buffers[i].data();
+            result_binds[i].buffer_length = result_buffers[i].size();
+            result_binds[i].length = & lengths[i];
+            result_binds[i].is_null = nullptr;
+        }
+
+        if(mysql_stmt_bind_result(stmt, result_binds.data()) != 0)
+        {
+            mysql_free_result(meta);
+            mysql_stmt_close(stmt);
+            return result;
+        }
+
+        while(mysql_stmt_fetch(stmt) == 0)
+        {
+            std::map<std::string, std::string> rowData;
+            for(int i = 0; i < numFields; ++i)
+            {
+                std::string value(result_buffers[i].data(), lengths[i]);
+                rowData[fields[i].name] = value;
+            }
+            result.push_back(rowData);
+        }
+
+        mysql_free_result(meta);
+        mysql_stmt_close(stmt);
     }
-    return mysql_affected_rows(conn);
+    else
+    {
+        if(mysql_query(conn, query.c_str()) != 0)
+        {
+            return result;
+        }
+
+        MYSQL_RES* res = mysql_store_result(conn);
+        if(!res)
+        {
+            return result;
+        }
+
+        int numFields = mysql_num_fields(res);
+        MYSQL_ROW row;
+
+        while((row = mysql_fetch_row(res)))
+        {
+            std::map<std::string, std::string> rowData;
+            for(int i = 0; i < numFields; ++i)
+            {
+                MYSQL_FIELD* field = mysql_fetch_field_direct(res, i);
+                rowData[field->name] = row[i] ? row[i] : "NULL";
+            }
+            result.push_back(rowData);
+        }
+
+        mysql_free_result(res);
+    }
+
+    return result;
 }
 
 /**

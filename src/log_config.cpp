@@ -26,12 +26,12 @@
 * @param delimiter The string to insert between joined parts
 * @return std::string The resulting concatenated string
 */
-std::string StringHelper::join(const std::vector<std::string>& parts, const std::string& delimiter)
+std::string StringHelper::join(const std::vector<std::string> & parts, const std::string& delimiter)
 {
     std::string result;
-    for (size_t i = 0; i < parts.size(); ++i)
+    for(size_t i = 0; i < parts.size(); ++i)
     {
-        if (i != 0)
+        if(i != 0)
         {
             result += delimiter;
         }
@@ -53,7 +53,7 @@ namespace LogConfig
     */
     void Config::setPassKey(const std::string& passKey)
     {
-        if (!passKey.empty())
+        if(!passKey.empty())
             this->passKey = passKey;
         else
             throw std::runtime_error(ERR_MSG_PASSKEY_EMPTY);
@@ -70,7 +70,7 @@ namespace LogConfig
     */
     std::string Config::getPassKey()
     {
-        if (passKey.has_value())
+        if(passKey.has_value())
             return passKey.value();
         else
             throw std::runtime_error(ERR_MSG_PASSKEY_EMPTY);
@@ -267,77 +267,98 @@ namespace LogConfig
     */
     std::string configToConnectionString(const Config& config)
     {
-        if (!config.databaseType.has_value())
+        if(!config.databaseType.has_value())
         {
             throw std::runtime_error("Database type is not specified in config");
         }
 
-        switch (config.databaseType.value())
+        switch(config.databaseType.value())
         {
-        case DataBaseType::Mock:
-            return config.databaseName.value_or("");
+            case DataBaseType::Mock:
+                return config.databaseName.value_or("");
+                break;
+
+            case DataBaseType::SQLite:
+                return config.databaseName.value_or("");
+                break;
+
+            case DataBaseType::MySQL:
+            {
+                std::vector<std::string> parts;
+                if(config.databaseHost.has_value())
+                    parts.emplace_back(std::string(CON_STR_HOST) + "=" + config.databaseHost.value());
+                if(config.databaseUser.has_value())
+                    parts.emplace_back(std::string(CON_STR_USER) + "=" + config.databaseUser.value());
+                if(config.databasePass.has_value())
+                    parts.emplace_back(std::string(CON_STR_PASS) + "=" + config.databasePass.value());
+                if(config.databaseName.has_value())
+                    parts.emplace_back(std::string(CON_STR_DB) + "=" + config.databaseName.value());
+                if(config.databasePort.has_value())
+                    parts.emplace_back(std::string(CON_STR_PORT) + "=" + std::to_string(config.databasePort.value()));
+
+                return StringHelper::join(parts, ";");
+            }
             break;
 
-        case DataBaseType::SQLite:
-            return config.databaseName.value_or("");
+            case DataBaseType::PostgreSQL:
+            {
+                std::vector<std::string> parts;
+                if(config.databaseHost.has_value())
+                    parts.emplace_back("host=" + config.databaseHost.value());
+                if(config.databaseUser.has_value())
+                    parts.emplace_back("user=" + config.databaseUser.value());
+                if(config.databasePass.has_value())
+                    parts.emplace_back("password=" + config.databasePass.value());
+                if(config.databaseName.has_value())
+                    parts.emplace_back("dbname=" + config.databaseName.value());
+                if(config.databasePort.has_value())
+                    parts.emplace_back("port=" + std::to_string(config.databasePort.value()));
+
+                return StringHelper::join(parts, " ");
+            }
             break;
 
-        case DataBaseType::MySQL:
-        {
-            std::vector<std::string> parts;
-            if (config.databaseHost.has_value())
-                parts.emplace_back(std::string(CON_STR_HOST) + "=" + config.databaseHost.value());
-            if (config.databaseUser.has_value())
-                parts.emplace_back(std::string(CON_STR_USER) + "=" + config.databaseUser.value());
-            if (config.databasePass.has_value())
-                parts.emplace_back(std::string(CON_STR_PASS) + "=" + config.databasePass.value());
-            if (config.databaseName.has_value())
-                parts.emplace_back(std::string(CON_STR_DB) + "=" + config.databaseName.value());
-            if (config.databasePort.has_value())
-                parts.emplace_back(std::string(CON_STR_PORT) + "=" + std::to_string(config.databasePort.value()));
+            case DataBaseType::MongoDB:
+            {
+                //std::vector<std::string> parts;
+                //if(config.databaseHost.has_value())
+                //    parts.emplace_back("host=" + config.databaseHost.value());
+                //if(config.databaseUser.has_value())
+                //    parts.emplace_back("user=" + config.databaseUser.value());
+                //if(config.databasePass.has_value())
+                //    parts.emplace_back("password=" + config.databasePass.value());
+                //if(config.databaseName.has_value())
+                //    parts.emplace_back("dbname=" + config.databaseName.value());
+                //if(config.databasePort.has_value())
+                //    parts.emplace_back("port=" + std::to_string(config.databasePort.value()));
 
-            return StringHelper::join(parts, ";");
-        }
-        break;
+                //return StringHelper::join(parts, ";");
+                std::string uri = "mongodb://";
 
-        case DataBaseType::PostgreSQL:
-        {
-            std::vector<std::string> parts;
-            if (config.databaseHost.has_value())
-                parts.emplace_back("host=" + config.databaseHost.value());
-            if (config.databaseUser.has_value())
-                parts.emplace_back("user=" + config.databaseUser.value());
-            if (config.databasePass.has_value())
-                parts.emplace_back("password=" + config.databasePass.value());
-            if (config.databaseName.has_value())
-                parts.emplace_back("dbname=" + config.databaseName.value());
-            if (config.databasePort.has_value())
-                parts.emplace_back("port=" + std::to_string(config.databasePort.value()));
+                // Аутентификация
+                if(config.databaseUser.has_value() && config.databasePass.has_value())
+                {
+                    uri += config.databaseUser.value() + ":" + config.databasePass.value() + "@";
+                }
 
-            return StringHelper::join(parts, " ");
-        }
-        break;
+                // Хост (обязательный)
+                uri += config.databaseHost.value_or("localhost");
 
-        case DataBaseType::MongoDB:
-        {
-            std::vector<std::string> parts;
-            if (config.databaseHost.has_value())
-                parts.emplace_back("host=" + config.databaseHost.value());
-            if (config.databaseUser.has_value())
-                parts.emplace_back("user=" + config.databaseUser.value());
-            if (config.databasePass.has_value())
-                parts.emplace_back("password=" + config.databasePass.value());
-            if (config.databaseName.has_value())
-                parts.emplace_back("database=" + config.databaseName.value());
-            if (config.databasePort.has_value())
-                parts.emplace_back("port=" + std::to_string(config.databasePort.value()));
+                // Порт
+                if(config.databasePort.has_value())
+                {
+                    uri += ":" + std::to_string(config.databasePort.value());
+                }
 
-            return StringHelper::join(parts, ";");
-        }
-        break;
+                // Имя БД
+                uri += "/" + config.databaseName.value_or("test");
 
-        default:
-            throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
+                return uri;
+            }
+            break;
+
+            default:
+                throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
         }
     };
 };

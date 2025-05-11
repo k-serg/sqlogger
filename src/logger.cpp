@@ -367,6 +367,7 @@ void Logger::logError(const std::string& errorMessage)
         return;
     }
     errorLog << getCurrentTimestamp() << " [ERROR] " << errorMessage << std::endl;
+    errorLog.close();
 }
 
 /**

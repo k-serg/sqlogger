@@ -23,6 +23,7 @@
 #include <vector>
 #include "log_entry.h"
 #include "database_interface.h"
+#include "query_builder.h"
 
 /**
  * @class LogReader
@@ -42,7 +43,9 @@ class LogReader
          * @param filters The filters to apply when retrieving logs.
          * @return A list of log entries that match the filters.
          */
-        LogEntryList getLogsByFilters(const std::vector<Filter> & filters);
+        LogEntryList getLogsByFilters(const std::vector<Filter> & filters,
+                                      int limit = -1,
+                                      int offset = -1);
 
 #ifdef USE_SOURCE_INFO
         /**

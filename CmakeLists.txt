@@ -9,10 +9,10 @@ project(${PROJECT_NAME})
 
 # Set the version numbers for the project
 set(SQLOGGER_VERSION_MAJOR 1)
-set(SQLOGGER_VERSION_MINOR 5)
+set(SQLOGGER_VERSION_MINOR 6)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
-set(SQLOGGER_DESCRIPTION "SQLogger is a lightweight logging library that uses SQLite as a backend.")
+set(SQLOGGER_DESCRIPTION "SQLogger is a lightweight logging library that uses SQLite (optional MySQL and PostgreSQL) as a backend.")
 
 # Configure the version header file
 configure_file("sqlogger_config.h.in" "sqlogger_config.h" @ONLY)
@@ -54,6 +54,7 @@ if (USE_SYSTEM_SQLITE)
 else()
     # Use the bundled SQLite amalgamation
     add_subdirectory(./3rdparty/sqlite-amalgamation)
+    message(STATUS "Use bundled SQLite3 amalgamation")
 endif()
 
 if (BUILD_SHARED_LIBS)
@@ -65,6 +66,7 @@ endif()
 if (USE_AES)
     find_package(OpenSSL REQUIRED)
     if (OpenSSL_FOUND)
+        message(STATUS "AES Support: ON")
         message(STATUS "OpenSSL found: ${OPENSSL_VERSION} ${OPENSSL_ROOT_DIR} ${OPENSSL_INCLUDE_DIR} ${OPENSSL_LIBRARIES}")
         include_directories(${OPENSSL_INCLUDE_DIR})
     else()
@@ -138,7 +140,8 @@ if (USE_MONGODB)
 #    else()
 #        message(FATAL_ERROR "MongoDB C driver not found. Please install libmongoc and libbson.")
 #    endif()
-#    add_subdirectory(./3rdparty/mongo-c-driver)
+    add_subdirectory(./3rdparty/mongo-c-driver)
+    message(STATUS "Use bundled MongoDB C driver")
 endif()
 
 # Define the list of header files
@@ -160,6 +163,9 @@ set(HEADERS
     "./include/base64.h"
     "./include/log_crypto.h"
     "./include/database_factory.h"
+    "./include/query_builder.h"
+    "./include/database_schema.h"
+    "./include/sql_builder.h"
 )
 
 # Define the list of source files
@@ -174,9 +180,14 @@ set(SOURCES
     "./src/fs_helper.cpp"
     "./src/log_config.cpp"
     "./src/ini_parser.cpp"
+    "./src/database_helper.cpp"
+    "./src/base64.cpp"
     "./src/log_crypto.cpp"
     "./src/database_factory.cpp"
-  )
+    "./src/query_builder.cpp"
+    "./src/database_schema.cpp"
+    "./src/sql_builder.cpp"
+)
 
 # Add MySQL header and source files if USE_MYSQL is enabled
 if (USE_MYSQL)
@@ -194,6 +205,8 @@ endif()
 if (USE_MONGODB)
     list(APPEND HEADERS "./include/mongodb_database.h")
     list(APPEND SOURCES "./src/mongodb_database.cpp")
+    list(APPEND HEADERS "./include/document_builder.h")
+    list(APPEND SOURCES "./src/document_builder.cpp")
 endif()
 
 # Create the library (shared or static based on BUILD_SHARED_LIBS)
@@ -312,8 +325,12 @@ if (USE_POSTGRESQL AND MSVC)
 endif()
 
 if (USE_MONGODB)
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
+    #include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src)
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
     include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
+
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
+    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
 endif()
 
 # Install the library

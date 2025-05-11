@@ -26,8 +26,41 @@
 #include "log_entry.h"
 #include "fs_helper.h"
 
+/**
+ * @namespace LogExport
+ * @brief Provides functionality for exporting log entries to various file formats
+ *
+ * @details This namespace contains utilities for converting log entries into different
+ * output formats and writing them to files. It supports multiple standardized formats
+ * suitable for different use cases including analysis, reporting, and data interchange.
+ *
+ * Supported formats:
+ * @see Format for supported output formats
+ *
+ * @see LogEntry for the structure of log entries
+ * @see ENTRY_DELIMITER for default delimiter values
+ */
 namespace LogExport
 {
+
+    /**
+    * @enum Format
+    * @brief Supported output formats for log export functionality
+    *
+    * @details Defines the various standardized formats available for exporting log entries.
+    * Each format is optimized for different use cases and interoperability requirements.
+    *
+    * The available formats are:
+    * @value TXT Plain text format - Human-readable, simple structure
+    * @value CSV Comma-Separated Values - Spreadsheet/analysis friendly
+    * @value XML eXtensible Markup Language - Structured, self-describing
+    * @value JSON JavaScript Object Notation - Web/API friendly
+    * @value YAML YAML Ain't Markup Language - Human-readable configuration
+    *
+    * @note Default format is TXT when not explicitly specified
+    * @see exportTo() for the main export function using this enum
+    * @see LogEntry for the data structure being exported
+    */
     enum class Format
     {
         TXT,

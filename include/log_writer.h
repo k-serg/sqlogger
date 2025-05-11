@@ -22,6 +22,8 @@
 
 #include "log_entry.h"
 #include "database_interface.h"
+#include "database_factory.h"
+#include "query_builder.h"
 
 /**
  * @class LogWriter

@@ -24,22 +24,48 @@
  * @param filters The filters to apply when retrieving logs.
  * @return A list of log entries that match the filters.
  */
-LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters)
+LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters,
+        int limit,
+        int offset)
 {
-    std::string query = "SELECT * FROM " + std::string(LOG_TABLE_NAME);
-    if(!filters.empty())
+    std::vector<std::string> fields =
     {
-        query += " WHERE ";
-        for(size_t i = 0; i < filters.size(); ++i)
-        {
-            if(i > 0) query += " AND ";
-            query += filters[i].field + " " + filters[i].op + " '" + filters[i].value + "'";
-        }
-    }
-    query += ";";
+        FIELD_LOG_ID,
+#ifdef USE_SOURCE_INFO
+        FIELD_LOG_SOURCES_ID,
+#endif
+        FIELD_LOG_TIMESTAMP,
+        FIELD_LOG_LEVEL,
+        FIELD_LOG_MESSAGE,
+        FIELD_LOG_FUNCTION,
+        FIELD_LOG_FILE,
+        FIELD_LOG_LINE,
+        FIELD_LOG_THREAD_ID
+    };
 
-    auto result = database.query(query);
+    // Build the query using QueryBuilder
+    std::string query = QueryBuilder::buildSelect(
+                            database.getDatabaseType(),
+                            LOG_TABLE_NAME,
+                            fields,
+                            filters,
+                            FIELD_LOG_TIMESTAMP,
+                            limit,
+                            offset
+                        );
+
+    // Prepare parameters for the query
+    std::vector<std::string> params;
+    for(const auto & filter : filters)
+    {
+        params.push_back(filter.value);
+    }
+
+    // Execute the query
+    auto result = database.query(query, params);
     LogEntryList logs;
+
+    // Convert results to LogEntry objects
     for(const auto & row : result)
     {
 #ifdef USE_SOURCE_INFO
@@ -50,25 +76,26 @@ LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters)
             srcHasValue = true;
         }
 #endif
-        logs.push_back(LogEntry
+        logs.push_back(
         {
             std::stoi(row.at(FIELD_LOG_ID)),
 #ifdef USE_SOURCE_INFO
-            std::stoi(row.at(FIELD_LOG_SOURCES_ID)),
+            row.count(FIELD_LOG_SOURCES_ID) ? std::stoi(row.at(FIELD_LOG_SOURCES_ID)) : SOURCE_NOT_FOUND,
 #endif
             row.at(FIELD_LOG_TIMESTAMP),
-               row.at(FIELD_LOG_LEVEL),
-               row.at(FIELD_LOG_MESSAGE),
-               row.at(FIELD_LOG_FUNCTION),
-               row.at(FIELD_LOG_FILE),
-               std::stoi(row.at(FIELD_LOG_LINE)),
-               row.at(FIELD_LOG_THREAD_ID)
+            row.at(FIELD_LOG_LEVEL),
+            row.at(FIELD_LOG_MESSAGE),
+            row.at(FIELD_LOG_FUNCTION),
+            row.at(FIELD_LOG_FILE),
+            std::stoi(row.at(FIELD_LOG_LINE)),
+            row.at(FIELD_LOG_THREAD_ID)
 #ifdef USE_SOURCE_INFO
-               , srcHasValue ? src.value().uuid : ""
-               , srcHasValue ? src.value().name : ""
+            , srcHasValue ? src.value().uuid : ""
+            , srcHasValue ? src.value().name : ""
 #endif
         });
     }
+
     return logs;
 }
 
@@ -80,8 +107,28 @@ LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters)
  */
 std::optional<SourceInfo> LogReader::getSourceById(const int sourceId)
 {
-    std::string query = "SELECT * FROM " + std::string(SOURCES_TABLE_NAME) + " WHERE " + std::string(FIELD_SOURCES_ID) + " = " + std::to_string(sourceId) + ";";
-    auto result = database.query(query);
+    std::vector<Filter> filters =
+    {
+        {Filter::Type::SourceId, FIELD_SOURCES_ID, "=", std::to_string(sourceId)}
+    };
+
+    std::vector<std::string> fields =
+    {
+        FIELD_SOURCES_ID,
+        FIELD_SOURCES_UUID,
+        FIELD_SOURCES_NAME
+    };
+
+    std::string query = QueryBuilder::buildSelect(
+                            database.getDatabaseType(),
+                            SOURCES_TABLE_NAME,
+                            fields,
+                            filters,
+                            "", // no ordering
+                            1   // limit to 1 result
+                        );
+
+    auto result = database.query(query, { std::to_string(sourceId) });
 
     if(result.empty())
     {
@@ -96,9 +143,7 @@ std::optional<SourceInfo> LogReader::getSourceById(const int sourceId)
            row.at(FIELD_SOURCES_NAME)
     };
 }
-#endif
 
-#ifdef USE_SOURCE_INFO
 /**
  * @brief Retrieves a source by its UUID.
  * @param uuid The UUID of the source to retrieve.
@@ -106,8 +151,28 @@ std::optional<SourceInfo> LogReader::getSourceById(const int sourceId)
  */
 std::optional<SourceInfo> LogReader::getSourceByUuid(const std::string& uuid)
 {
-    std::string query = "SELECT * FROM " + std::string(SOURCES_TABLE_NAME) + " WHERE " + std::string(FIELD_SOURCES_UUID) + " = '" + uuid + "';";
-    auto result = database.query(query);
+    std::vector<Filter> filters =
+    {
+        {Filter::Type::Unknown, FIELD_SOURCES_UUID, "=", uuid}
+    };
+
+    std::vector<std::string> fields =
+    {
+        FIELD_SOURCES_ID,
+        FIELD_SOURCES_UUID,
+        FIELD_SOURCES_NAME
+    };
+
+    std::string query = QueryBuilder::buildSelect(
+                            database.getDatabaseType(),
+                            SOURCES_TABLE_NAME,
+                            fields,
+                            filters,
+                            "", // no ordering
+                            1   // limit to 1 result
+                        );
+
+    auto result = database.query(query, { uuid });
 
     if(result.empty())
     {
@@ -122,9 +187,7 @@ std::optional<SourceInfo> LogReader::getSourceByUuid(const std::string& uuid)
            row.at(FIELD_SOURCES_NAME)
     };
 }
-#endif
 
-#ifdef USE_SOURCE_INFO
 /**
  * @brief Retrieves a source by its name.
  * @param name The name of the source to retrieve.
@@ -132,8 +195,28 @@ std::optional<SourceInfo> LogReader::getSourceByUuid(const std::string& uuid)
  */
 std::optional<SourceInfo> LogReader::getSourceByName(const std::string& name)
 {
-    std::string query = "SELECT * FROM " + std::string(SOURCES_TABLE_NAME) + " WHERE " + std::string(FIELD_SOURCES_NAME) + " = '" + name + "';";
-    auto result = database.query(query);
+    std::vector<Filter> filters =
+    {
+        {Filter::Type::Unknown, FIELD_SOURCES_NAME, "=", name}
+    };
+
+    std::vector<std::string> fields =
+    {
+        FIELD_SOURCES_ID,
+        FIELD_SOURCES_UUID,
+        FIELD_SOURCES_NAME
+    };
+
+    std::string query = QueryBuilder::buildSelect(
+                            database.getDatabaseType(),
+                            SOURCES_TABLE_NAME,
+                            fields,
+                            filters,
+                            "", // no ordering
+                            1   // limit to 1 result
+                        );
+
+    auto result = database.query(query, { name });
 
     if(result.empty())
     {
@@ -148,16 +231,28 @@ std::optional<SourceInfo> LogReader::getSourceByName(const std::string& name)
            row.at(FIELD_SOURCES_NAME)
     };
 }
-#endif
 
-#ifdef USE_SOURCE_INFO
 /**
  * @brief Retrieves all sources from the database.
  * @return A vector containing all sources.
  */
 std::vector<SourceInfo> LogReader::getAllSources()
 {
-    std::string query = "SELECT * FROM " + std::string(SOURCES_TABLE_NAME) + ";";
+    std::vector<std::string> fields =
+    {
+        FIELD_SOURCES_ID,
+        FIELD_SOURCES_UUID,
+        FIELD_SOURCES_NAME
+    };
+
+    std::string query = QueryBuilder::buildSelect(
+                            database.getDatabaseType(),
+                            SOURCES_TABLE_NAME,
+                            fields,
+                            {}, // no filters
+                            FIELD_SOURCES_ID // order by ID
+                        );
+
     auto result = database.query(query);
     std::vector<SourceInfo> sources;
 
@@ -174,4 +269,3 @@ std::vector<SourceInfo> LogReader::getAllSources()
     return sources;
 }
 #endif
-

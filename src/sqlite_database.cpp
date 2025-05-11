@@ -117,36 +117,83 @@ bool SQLiteDatabase::isConnected() const
     return db != nullptr;
 }
 
-/**
- * @brief Executes an SQL query.
- * @param query The SQL query to execute.
- * @return True if the query was executed successfully, false otherwise.
- */
-bool SQLiteDatabase::execute(const std::string& query)
+bool SQLiteDatabase::execute(
+    const std::string& query,
+    const std::vector<std::string> & params,
+    int* affectedRows)
 {
-    char* errMsg = nullptr;
-    if(sqlite3_exec(db, query.c_str(), nullptr, nullptr, & errMsg) != SQLITE_OK)
+    if(params.empty())
     {
-        std::cerr << ERR_MSG_SQL_ERR << errMsg << std::endl;
-        sqlite3_free(errMsg);
-        reconnect();
+        // Simple query execution without parameters
+        char* errMsg = nullptr;
+        if(sqlite3_exec(db, query.c_str(), nullptr, nullptr, & errMsg) != SQLITE_OK)
+        {
+            std::cerr << ERR_MSG_SQL_ERR << errMsg << std::endl;
+            sqlite3_free(errMsg);
+            reconnect();
+            return false;
+        }
+
+        if(affectedRows)
+        {
+            * affectedRows = sqlite3_changes(db);
+        }
+        return true;
+    }
+
+    // Parameterized query execution
+    sqlite3_stmt* stmt;
+    if(sqlite3_prepare_v2(db, query.c_str(), -1, & stmt, nullptr) != SQLITE_OK)
+    {
+        std::cerr << ERR_MSG_FAILED_PREPARE_STMT << sqlite3_errmsg(db) << std::endl;
         return false;
     }
-    return true;
+
+    // Bind parameters
+    for(size_t i = 0; i < params.size(); ++i)
+    {
+        sqlite3_bind_text(stmt, i + 1, params[i].c_str(), -1, SQLITE_TRANSIENT);
+    }
+
+    int rc = sqlite3_step(stmt);
+    bool success = (rc == SQLITE_DONE);
+
+    if(success && affectedRows)
+    {
+        * affectedRows = sqlite3_changes(db);
+    }
+
+    sqlite3_finalize(stmt);
+
+    if(!success)
+    {
+        std::cerr << ERR_MSG_FAILED_QUERY << ": " << sqlite3_errmsg(db) << std::endl;
+        reconnect();
+    }
+
+    return success;
 }
 
 /**
  * @brief Executes an SQL query and returns the result.
  * @param query The SQL query to execute.
+ * @param params The parameters to bind to the query.
  * @return A vector of maps representing the query result.
  */
-std::vector<std::map<std::string, std::string>> SQLiteDatabase::query(const std::string& query)
+std::vector<std::map<std::string, std::string>> SQLiteDatabase::query(const std::string& query,
+        const std::vector<std::string> & params)
 {
     std::vector<std::map<std::string, std::string>> result;
     sqlite3_stmt* stmt;
 
     if(sqlite3_prepare_v2(db, query.c_str(), -1, & stmt, nullptr) == SQLITE_OK)
     {
+        // Bind parameters
+        for(size_t i = 0; i < params.size(); ++i)
+        {
+            sqlite3_bind_text(stmt, i + 1, params[i].c_str(), -1, SQLITE_TRANSIENT);
+        }
+
         while(sqlite3_step(stmt) == SQLITE_ROW)
         {
             std::map<std::string, std::string> row;
@@ -170,56 +217,6 @@ std::vector<std::map<std::string, std::string>> SQLiteDatabase::query(const std:
     }
 
     return result;
-}
-
-/**
- * @brief Prepares and executes an SQL query with parameters.
- * @param query The SQL query to execute.
- * @param params The parameters to bind to the query.
- * @return True if the query was executed successfully, false otherwise.
- */
-bool SQLiteDatabase::executeWithParams(const std::string& query, const std::vector<std::string> & params)
-{
-    sqlite3_stmt* stmt;
-    if(sqlite3_prepare_v2(db, query.c_str(), -1, & stmt, nullptr) == SQLITE_OK)
-    {
-        for(size_t i = 0; i < params.size(); ++i)
-        {
-            sqlite3_bind_text(stmt, i + 1, params[i].c_str(), -1, SQLITE_TRANSIENT);
-        }
-
-        if(sqlite3_step(stmt) != SQLITE_DONE)
-        {
-            std::cerr << ERR_MSG_FAILED_QUERY << ": " << sqlite3_errmsg(db) << std::endl;
-            sqlite3_finalize(stmt);
-            return false;
-        }
-
-        sqlite3_finalize(stmt);
-        return true;
-    }
-    else
-    {
-        std::cerr << ERR_MSG_FAILED_PREPARE_STMT << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-}
-
-/**
- * @brief Executes an SQL query and returns the number of affected rows.
- * @param query The SQL query to execute.
- * @return The number of affected rows, or -1 if an error occurred.
- */
-int SQLiteDatabase::executeWithRowCount(const std::string& query)
-{
-    char* errMsg = nullptr;
-    if(sqlite3_exec(db, query.c_str(), nullptr, nullptr, & errMsg) != SQLITE_OK)
-    {
-        std::cerr << ERR_MSG_SQL_ERR << errMsg << std::endl;
-        sqlite3_free(errMsg);
-        return -1;
-    }
-    return sqlite3_changes(db);
 }
 
 /**

@@ -25,6 +25,8 @@
 #include <string>
 #include <mutex>
 #include <functional>
+#include <stdexcept>
+#include <algorithm>
 #include "log_entry.h"
 #include "database_interface.h"
 
@@ -58,14 +60,17 @@ class MockDatabase : public IDatabase
          * @param query The SQL query to execute.
          * @return True if the query was executed successfully, false otherwise.
          */
-        bool execute(const std::string& query) override;
+        bool execute(const std::string& query,
+                     const std::vector<std::string> & params = {},
+                     int* affectedRows = nullptr) override;
 
         /**
          * @brief Executes an SQL query and returns the result.
          * @param query The SQL query to execute.
          * @return A vector of maps representing the query result.
          */
-        std::vector<std::map<std::string, std::string>> query(const std::string& query) override;
+        std::vector<std::map<std::string, std::string>> query(const std::string& query,
+                const std::vector<std::string> & params = {}) override;
 
         /**
          * @brief Prepares and executes an SQL query with parameters.
@@ -73,14 +78,14 @@ class MockDatabase : public IDatabase
          * @param params The parameters to bind to the query.
          * @return True if the query was executed successfully, false otherwise.
          */
-        bool executeWithParams(const std::string& query, const std::vector<std::string> & params) override;
+        //bool executeWithParams(const std::string& query, const std::vector<std::string> & params) override;
 
         /**
          * @brief Executes an SQL query and returns the number of affected rows.
          * @param query The SQL query to execute.
          * @return The number of affected rows, or -1 if an error occurred.
          */
-        int executeWithRowCount(const std::string& query) override;
+        //int executeWithRowCount(const std::string& query) override;
 
         /**
          * @brief Begins a transaction.
@@ -179,6 +184,16 @@ class MockDatabase : public IDatabase
          * @return True if the value matches the filter, false otherwise.
          */
         bool applyFilter(const std::string& value, const Filter& filter);
+
+        /**
+        * @brief Processes parameterized query by replacing placeholders with actual values
+        * @param query The original query with placeholders
+        * @param params Parameters to substitute
+        * @return Query with parameters inserted
+        */
+        std::string processParameterizedQuery(
+            const std::string& query,
+            const std::vector<std::string> & params);
 
         std::vector<std::string> executedQueries; /**< List of executed queries. */
         std::vector<std::vector<std::string>> executedParams; /**< List of executed parameters. */
