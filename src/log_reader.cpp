@@ -20,10 +20,25 @@
 #include "log_reader.h"
 
 /**
- * @brief Retrieves log entries based on specified filters.
- * @param filters The filters to apply when retrieving logs.
- * @return A list of log entries that match the filters.
- */
+* @brief Retrieves log entries from the database matching specified filters.
+*
+* @param filters Vector of Filter objects defining search criteria.
+*        Each filter specifies:
+*        - Field name (e.g., "level", "timestamp")
+*        - Comparison operator ("=", ">", "<=" etc.)
+*        - Value to match
+*        - Optional type hint (for special handling)
+*
+* @param limit Maximum number of log entries to return.
+*        - Use -1 for no limit (default)
+*        - Positive values enable pagination
+*
+* @param offset Number of log entries to skip before returning results.
+*        - Use -1 to disable (default)
+*        - Requires positive limit to take effect
+*
+* @return LogEntryList List of log entries ordered by timestamp (descending).
+*/
 LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters,
         int limit,
         int offset)

@@ -137,10 +137,25 @@ class LOGGER_API Logger
         Stats getStats() const;
 
         /**
-         * @brief Retrieves log entries based on specified filters.
-         * @param filters The filters to apply when retrieving logs.
-         * @return A list of log entries that match the filters.
-         */
+        * @brief Retrieves log entries from the database matching specified filters.
+        *
+        * @param filters Vector of Filter objects defining search criteria.
+        *        Each filter specifies:
+        *        - Field name (e.g., "level", "timestamp")
+        *        - Comparison operator ("=", ">", "<=" etc.)
+        *        - Value to match
+        *        - Optional type hint (for special handling)
+        *
+        * @param limit Maximum number of log entries to return.
+        *        - Use -1 for no limit (default)
+        *        - Positive values enable pagination
+        *
+        * @param offset Number of log entries to skip before returning results.
+        *        - Use -1 to disable (default)
+        *        - Requires positive limit to take effect
+        *
+        * @return LogEntryList List of log entries ordered by timestamp (descending).
+        */
         LogEntryList getLogsByFilters(const std::vector<Filter> & filters,
                                       const int limit = -1,
                                       const int offset = -1);
@@ -154,6 +169,8 @@ class LOGGER_API Logger
         /**
          * @brief Retrieves log entries with the specified level.
          * @param level The severity level to filter by.
+         * @param limit Maximum number of log entries to return.
+         * @param offset Number of log entries to skip before returning results.
          * @return A list of log entries with the specified level.
          */
         LogEntryList getLogsByLevel(const LogLevel& level,
@@ -164,6 +181,8 @@ class LOGGER_API Logger
          * @brief Retrieves log entries within a specified timestamp range.
          * @param startTime The start of the timestamp range.
          * @param endTime The end of the timestamp range.
+         * @param limit Maximum number of log entries to return.
+         * @param offset Number of log entries to skip before returning results.
          * @return A list of log entries within the specified timestamp range.
          */
         LogEntryList getLogsByTimestampRange(const std::string& startTime, const std::string& endTime,
@@ -173,6 +192,8 @@ class LOGGER_API Logger
         /**
          * @brief Retrieves log entries from the specified file.
          * @param file The file to filter by.
+         * @param limit Maximum number of log entries to return.
+         * @param offset Number of log entries to skip before returning results.
          * @return A list of log entries from the specified file.
          */
         LogEntryList getLogsByFile(const std::string& file,
@@ -182,6 +203,8 @@ class LOGGER_API Logger
         /**
          * @brief Retrieves log entries created by the specified thread.
          * @param threadId The thread ID to filter by.
+         * @param limit Maximum number of log entries to return.
+         * @param offset Number of log entries to skip before returning results.
          * @return A list of log entries created by the specified thread.
          */
         LogEntryList getLogsByThreadId(const std::string& threadId,
@@ -191,6 +214,8 @@ class LOGGER_API Logger
         /**
          * @brief Retrieves log entries created in the specified function.
          * @param function The function to filter by.
+         * @param limit Maximum number of log entries to return.
+         * @param offset Number of log entries to skip before returning results.
          * @return A list of log entries created in the specified function.
          */
         LogEntryList getLogsByFunction(const std::string& function,
