@@ -31,7 +31,6 @@ DataBaseType DataBaseHelper::stringToDatabaseType(const std::string& stringType)
     if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MYSQL)) return DataBaseType::MySQL;
     if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_POSTGRESQL)) return DataBaseType::PostgreSQL;
     if(LogHelper::toUpperCase(stringType) == LogHelper::toUpperCase(DB_TYPE_STR_MONGODB)) return DataBaseType::MongoDB;
-    // return DataBaseType::Unknown;
     throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
 };
 
@@ -56,9 +55,11 @@ std::string DataBaseHelper::databaseTypeToString(const DataBaseType& type)
         case DataBaseType::PostgreSQL:
             return DB_TYPE_STR_POSTGRESQL;
             break;
+        case DataBaseType::MongoDB:
+            return DB_TYPE_STR_MONGODB;
+            break;
         default:
             throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
-            // return DB_TYPE_STR_UNKNOWN;
             break;
     }
 };

@@ -102,7 +102,7 @@ void LogWriter::createLogsTable()
                                     );
 #endif
 
-    if(!database.query(checkQueryLogs).empty()
+    if(!checkQueryLogs.empty() && !database.query(checkQueryLogs).empty()
 #ifdef USE_SOURCE_INFO
             && !database.query(checkQuerySources).empty()
 #endif
@@ -129,7 +129,10 @@ void LogWriter::createLogsTable()
                             database.getDatabaseType()
                         );
 
-    database.execute(query);
+    if(!query.empty())
+    {
+        database.execute(query);
+    }
 }
 
 /**
@@ -155,7 +158,7 @@ void LogWriter::createIndexes()
                                      idxPrefix + field
                                  );
 
-        if(!database.query(checkQuery).empty())
+        if(!checkQuery.empty() && !database.query(checkQuery).empty())
             continue; // Skip if exists
 
         std::string query = QueryBuilder::buildCreateIndex(
@@ -232,7 +235,10 @@ void LogWriter::createSourcesTable()
                             database.getDatabaseType()
                         );
 
-    database.execute(query);
+    if(!query.empty())
+    {
+        database.execute(query);
+    }
 }
 #endif
 

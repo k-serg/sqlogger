@@ -412,14 +412,16 @@ Logger::Stats Logger::getStats() const
  * @param filters The filters to apply when retrieving logs.
  * @return A list of log entries that match the filters.
  */
-LogEntryList Logger::getLogsByFilters(const std::vector<Filter> & filters)
+LogEntryList Logger::getLogsByFilters(const std::vector<Filter> & filters,
+                                      const int limit,
+                                      const int offset)
 {
     if(!waitUntilEmpty())
     {
         logError(ERR_MSG_TIMEOUT_TASK_QUEUE);
     }
     std::scoped_lock lock(logMutex, dbMutex);
-    return reader.getLogsByFilters(filters);
+    return reader.getLogsByFilters(filters, limit, offset);
 }
 
 /**
@@ -436,14 +438,16 @@ LogEntryList Logger::getAllLogs()
  * @param level The severity level to filter by.
  * @return A list of log entries with the specified level.
  */
-LogEntryList Logger::getLogsByLevel(const LogLevel& level)
+LogEntryList Logger::getLogsByLevel(const LogLevel& level,
+                                    const int limit,
+                                    const int offset)
 {
     Filter filter;
     filter.type = Filter::Type::Level;
     filter.field = filter.typeToField();
     filter.op = "=";
     filter.value = levelToString(level);
-    return getLogsByFilters({ filter });
+    return getLogsByFilters({ filter }, limit, offset);
 }
 
 /**
@@ -452,7 +456,9 @@ LogEntryList Logger::getLogsByLevel(const LogLevel& level)
  * @param endTime The end of the timestamp range.
  * @return A list of log entries within the specified timestamp range.
  */
-LogEntryList Logger::getLogsByTimestampRange(const std::string& startTime, const std::string& endTime)
+LogEntryList Logger::getLogsByTimestampRange(const std::string& startTime, const std::string& endTime,
+        const int limit,
+        const int offset)
 {
     Filter filterStart;
     filterStart.type = Filter::Type::TimestampRange;
@@ -466,7 +472,7 @@ LogEntryList Logger::getLogsByTimestampRange(const std::string& startTime, const
     filterEnd.op = "<=";
     filterEnd.value = endTime;
 
-    return getLogsByFilters({ filterStart, filterEnd });
+    return getLogsByFilters({ filterStart, filterEnd }, limit, offset);
 }
 
 /**
@@ -474,14 +480,16 @@ LogEntryList Logger::getLogsByTimestampRange(const std::string& startTime, const
  * @param file The file to filter by.
  * @return A list of log entries from the specified file.
  */
-LogEntryList Logger::getLogsByFile(const std::string& file)
+LogEntryList Logger::getLogsByFile(const std::string& file,
+                                   const int limit,
+                                   const int offset)
 {
     Filter filter;
     filter.type = Filter::Type::File;
     filter.field = filter.typeToField();
     filter.op = "=";
     filter.value = file;
-    return getLogsByFilters({ filter });
+    return getLogsByFilters({ filter }, limit, offset);
 }
 
 /**
@@ -489,14 +497,16 @@ LogEntryList Logger::getLogsByFile(const std::string& file)
  * @param threadId The thread ID to filter by.
  * @return A list of log entries created by the specified thread.
  */
-LogEntryList Logger::getLogsByThreadId(const std::string& threadId)
+LogEntryList Logger::getLogsByThreadId(const std::string& threadId,
+                                       const int limit,
+                                       const int offset)
 {
     Filter filter;
     filter.type = Filter::Type::ThreadId;
     filter.field = filter.typeToField();
     filter.op = "=";
     filter.value = threadId;
-    return getLogsByFilters({ filter });
+    return getLogsByFilters({ filter }, limit, offset);
 }
 
 /**
@@ -504,14 +514,16 @@ LogEntryList Logger::getLogsByThreadId(const std::string& threadId)
  * @param function The function to filter by.
  * @return A list of log entries created in the specified function.
  */
-LogEntryList Logger::getLogsByFunction(const std::string& function)
+LogEntryList Logger::getLogsByFunction(const std::string& function,
+                                       const int limit,
+                                       const int offset)
 {
     Filter filter;
     filter.type = Filter::Type::Function;
     filter.field = filter.typeToField();
     filter.op = "=";
     filter.value = function;
-    return getLogsByFilters({ filter });
+    return getLogsByFilters({ filter }, limit, offset);
 }
 
 /**
@@ -609,14 +621,16 @@ std::vector<SourceInfo> Logger::getAllSources()
 * @param sourceId The source ID of the source to retrieve.
  * @return A list of log entries associated with the specified source ID.
 */
-LogEntryList Logger::getLogsBySourceId(const int& sourceId)
+LogEntryList Logger::getLogsBySourceId(const int& sourceId,
+                                       const int limit,
+                                       const int offset)
 {
     Filter filter;
     filter.type = Filter::Type::SourceId;
     filter.field = filter.typeToField();
     filter.op = "=";
     filter.value = std::to_string(sourceId);
-    return getLogsByFilters({ filter });
+    return getLogsByFilters({ filter, limit, offset });
 }
 #endif
 
@@ -626,7 +640,9 @@ LogEntryList Logger::getLogsBySourceId(const int& sourceId)
 * @param sourceUuid The UUID of the source to retrieve.
  * @return A list of log entries associated with the specified source UUID.
 */
-LogEntryList Logger::getLogsBySourceUuid(const std::string& sourceUuid)
+LogEntryList Logger::getLogsBySourceUuid(const std::string& sourceUuid,
+        const int limit,
+        const int offset)
 {
     const auto sourceInfo = getSourceByUuid(sourceUuid);
     if(!sourceInfo.has_value() || sourceInfo.value().sourceId == SOURCE_NOT_FOUND)
@@ -635,6 +651,6 @@ LogEntryList Logger::getLogsBySourceUuid(const std::string& sourceUuid)
     }
 
     const int sourceId = sourceInfo.value().sourceId;
-    return getLogsBySourceId(sourceId);
+    return getLogsBySourceId(sourceId, limit, offset);
 }
 #endif

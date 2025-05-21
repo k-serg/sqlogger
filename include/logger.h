@@ -141,7 +141,9 @@ class LOGGER_API Logger
          * @param filters The filters to apply when retrieving logs.
          * @return A list of log entries that match the filters.
          */
-        LogEntryList getLogsByFilters(const std::vector<Filter> & filters);
+        LogEntryList getLogsByFilters(const std::vector<Filter> & filters,
+                                      const int limit = -1,
+                                      const int offset = -1);
 
         /**
          * @brief Retrieves all log entries.
@@ -154,7 +156,9 @@ class LOGGER_API Logger
          * @param level The severity level to filter by.
          * @return A list of log entries with the specified level.
          */
-        LogEntryList getLogsByLevel(const LogLevel& level);
+        LogEntryList getLogsByLevel(const LogLevel& level,
+                                    const int limit = -1,
+                                    const int offset = -1);
 
         /**
          * @brief Retrieves log entries within a specified timestamp range.
@@ -162,28 +166,36 @@ class LOGGER_API Logger
          * @param endTime The end of the timestamp range.
          * @return A list of log entries within the specified timestamp range.
          */
-        LogEntryList getLogsByTimestampRange(const std::string& startTime, const std::string& endTime);
+        LogEntryList getLogsByTimestampRange(const std::string& startTime, const std::string& endTime,
+                                             const int limit = -1,
+                                             const int offset = -1);
 
         /**
          * @brief Retrieves log entries from the specified file.
          * @param file The file to filter by.
          * @return A list of log entries from the specified file.
          */
-        LogEntryList getLogsByFile(const std::string& file);
+        LogEntryList getLogsByFile(const std::string& file,
+                                   const int limit = -1,
+                                   const int offset = -1);
 
         /**
          * @brief Retrieves log entries created by the specified thread.
          * @param threadId The thread ID to filter by.
          * @return A list of log entries created by the specified thread.
          */
-        LogEntryList getLogsByThreadId(const std::string& threadId);
+        LogEntryList getLogsByThreadId(const std::string& threadId,
+                                       const int limit = -1,
+                                       const int offset = -1);
 
         /**
          * @brief Retrieves log entries created in the specified function.
          * @param function The function to filter by.
          * @return A list of log entries created in the specified function.
          */
-        LogEntryList getLogsByFunction(const std::string& function);
+        LogEntryList getLogsByFunction(const std::string& function,
+                                       const int limit = -1,
+                                       const int offset = -1);
 
         /**
          * @brief Sets the minimum log level for messages to be logged.
@@ -249,14 +261,18 @@ class LOGGER_API Logger
         * @param sourceId The source ID of the source to retrieve.
          * @return A list of log entries associated with the specified source ID.
         */
-        LogEntryList getLogsBySourceId(const int& sourceId);
+        LogEntryList getLogsBySourceId(const int& sourceId,
+                                       const int limit = -1,
+                                       const int offset = -1);
 
         /**
         * @brief Retrieves a logs by its source UUID.
         * @param sourceUuid The UUID of the source to retrieve.
          * @return A list of log entries associated with the specified source UUID.
         */
-        LogEntryList getLogsBySourceUuid(const std::string& sourceUuid);
+        LogEntryList getLogsBySourceUuid(const std::string& sourceUuid,
+                                         const int limit = -1,
+                                         const int offset = -1);
 #endif
 
     private:

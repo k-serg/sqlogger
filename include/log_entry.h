@@ -76,8 +76,10 @@
 #define EXP_FIELD_FILE "File"
 #define EXP_FIELD_LINE "Line"
 #define EXP_FIELD_THREAD_ID "ThreadID"
-#define EXP_FIELD_SOURCE_UUID "SourceUUID"
-#define EXP_FIELD_SOURCE_NAME "SourceName"
+#ifdef USE_SOURCE_INFO
+    #define EXP_FIELD_SOURCE_UUID "SourceUUID"
+    #define EXP_FIELD_SOURCE_NAME "SourceName"
+#endif
 
 #define LOG_LEVEL_UNKNOWN "UNKNOWN"
 #define LOG_LEVEL_TRACE "TRACE"

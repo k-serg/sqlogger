@@ -335,22 +335,18 @@ namespace LogConfig
                 //return StringHelper::join(parts, ";");
                 std::string uri = "mongodb://";
 
-                // Аутентификация
                 if(config.databaseUser.has_value() && config.databasePass.has_value())
                 {
                     uri += config.databaseUser.value() + ":" + config.databasePass.value() + "@";
                 }
 
-                // Хост (обязательный)
                 uri += config.databaseHost.value_or("localhost");
 
-                // Порт
                 if(config.databasePort.has_value())
                 {
                     uri += ":" + std::to_string(config.databasePort.value());
                 }
 
-                // Имя БД
                 uri += "/" + config.databaseName.value_or("test");
 
                 return uri;

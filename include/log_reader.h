@@ -44,8 +44,8 @@ class LogReader
          * @return A list of log entries that match the filters.
          */
         LogEntryList getLogsByFilters(const std::vector<Filter> & filters,
-                                      int limit = -1,
-                                      int offset = -1);
+                                      const int limit = -1,
+                                      const int offset = -1);
 
 #ifdef USE_SOURCE_INFO
         /**
