@@ -654,7 +654,7 @@ LogEntryList Logger::getLogsBySourceId(const int& sourceId,
     filter.field = filter.typeToField();
     filter.op = "=";
     filter.value = std::to_string(sourceId);
-    return getLogsByFilters({ filter, limit, offset });
+    return getLogsByFilters({ filter }, limit, offset);
 }
 #endif
 
