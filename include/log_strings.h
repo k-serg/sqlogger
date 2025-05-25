@@ -40,6 +40,9 @@
 #define ERR_MSG_DROP_NOT_ALLOWED "Database drop is not allowed"
 #define ERR_MSG_UNSUPPORTED_DB "Unsupported database type"
 #define ERR_MSG_PASSKEY_EMPTY "Passkey is empty. Set passkey value"
+#define ERR_MSG_FAILED_BATCH_TASK "Batch task failed: "
+#define ERR_MSG_FAILED_BATCH_QUERY "Batch query failed: "
+
 
 #ifdef USE_AES
     #define ERR_MSG_CRYPTO_ENC_INIT_FAILED "Encryption init failed"

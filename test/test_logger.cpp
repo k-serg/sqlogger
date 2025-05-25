@@ -92,6 +92,8 @@
 #define TEST_PRINT_LOGS 0
 #define TEST_WAIT_UNTIL_EMPTY_MSEC 1000
 #define TEST_ONLY_FILE_NAME 0
+#define TEST_USE_BATCH 1
+#define TEST_BATCH_SIZE 1000
 
 #define TEST_DATABASE_NAME "test_logs"
 #define TEST_DATABASE_TABLE "logs"
@@ -166,6 +168,8 @@ auto TEST_CONFIG = [ & ]()
     cfg.passKey = TEST_ENC_DEC_PASS_KEY;
 #endif
     cfg.databaseType = TEST_DATABASE_TYPE;
+    cfg.useBatch = TEST_USE_BATCH;
+    cfg.batchSize = TEST_BATCH_SIZE;
 #ifdef USE_SOURCE_INFO
     cfg.sourceUuid = TEST_SOURCE_UUID;
     cfg.sourceName = TEST_SOURCE_NAME;
@@ -281,6 +285,9 @@ void testBasicFunctionality()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
     // Retrieve all logs
     LogEntryList allLogs = logger.getAllLogs();
 
@@ -322,6 +329,9 @@ void testFilterByLevel()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
     // Retrieve logs for the specified level
     LogEntryList levelLogs = logger.getLogsByLevel(level);
 
@@ -355,8 +365,11 @@ void testFilterByThreadId()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
     // Retrieve logs for the current thread
-    auto threadLogs = logger.getLogsByThreadId(currentThreadId);
+    LogEntryList threadLogs = logger.getLogsByThreadId(currentThreadId);
 
     printLogs(threadLogs);
 
@@ -391,7 +404,11 @@ void testFilterByFile()
 #else
     const std::string file = __FILE__;
 #endif
-    auto fileLogs = logger.getLogsByFile(file);
+
+    // flush batched logs for testing purposes
+    logger.flush();
+
+    LogEntryList fileLogs = logger.getLogsByFile(file);
 
     printLogs(fileLogs);
 
@@ -420,8 +437,11 @@ void testFilterByFunction()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
     // Retrieve logs for the current function
-    auto functionLogs = logger.getLogsByFunction(__func__);
+    LogEntryList functionLogs = logger.getLogsByFunction(__func__);
 
     printLogs(functionLogs);
 
@@ -452,8 +472,11 @@ void testFilterByTimestampRange()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
     // Retrieve logs within the specified timestamp range
-    auto timeLogs = logger.getLogsByTimestampRange("1970-01-01 00:00:00", currentTime);
+    LogEntryList timeLogs = logger.getLogsByTimestampRange("1970-01-01 00:00:00", currentTime);
 
     printLogs(timeLogs);
 
@@ -480,6 +503,14 @@ void testClearLogs()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
+    {
+        std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
+    }
+
     // Clear the database again
     logger.clearLogs();
 
@@ -495,33 +526,31 @@ void testClearLogs()
  */
 void testMultiThread()
 {
-    // Clear the database before starting the test
     logger.clearLogs();
 
     const int numThreads = 10;
     const int logsPerThread = 100;
     std::vector<std::thread> threads;
-    std::atomic<int> threadsCompleted{ 0 };
+    std::atomic<int> logsWritten{ 0 };
+    std::mutex logMutex;
 
-    // Lambda function to be executed in threads
-    auto threadFunc = [ & logsPerThread, & threadsCompleted](int threadId)
+    auto threadFunc = [ & ](int threadId)
     {
         try
         {
             for(int j = 0; j < logsPerThread; ++j)
             {
-                LOG_INFO(logger) << "Thread " << threadId << ", log " << j;
+                {
+                    std::lock_guard<std::mutex> lock(logMutex);
+                    LOG_INFO(logger) << "Thread " << threadId << ", log " << j;
+                }
+                logsWritten++;
             }
         }
         catch(const std::exception& e)
         {
             std::cerr << "Exception in thread " << threadId << ": " << e.what() << std::endl;
         }
-        catch(...)
-        {
-            std::cerr << "Unknown exception in thread " << threadId << std::endl;
-        }
-        threadsCompleted++;
     };
 
     // Create threads
@@ -539,16 +568,25 @@ void testMultiThread()
         }
     }
 
+    assert(logsWritten == numThreads* logsPerThread);
+
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC * 5)))
     {
-        std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
+        std::cerr << "Warning: Task queue timeout" << std::endl;
     }
 
-    //std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Additional delay
+    // flush batched logs for testing purposes
+    logger.flush();
 
-    // Check that all logs are written
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
     LogEntryList allLogs = logger.getAllLogs();
+
+    if(allLogs.size() != numThreads* logsPerThread)
+    {
+        std::cerr << "Error: Expected " << numThreads* logsPerThread << " logs, got " << allLogs.size() << std::endl;
+    }
 
     printLogs(allLogs);
 
@@ -620,6 +658,9 @@ void testMultiFilters()
     timestampFilterEnd.op = "<=";
     filters.push_back(timestampFilterEnd);
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
     // Retrieve logs using the filters
     LogEntryList filteredLogs = logger.getLogsByFilters(filters);
 
@@ -655,6 +696,9 @@ void testFileExport()
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Additional delay
+
+    // flush batched logs for testing purposes
+    logger.flush();
 
     // Retrieve all logs
     LogEntryList allLogs = logger.getAllLogs();
@@ -854,6 +898,11 @@ void testPerformance()
     // Clear the database before starting the test
     logger.clearLogs();
 
+    // Reset stats
+    logger.resetStats();
+
+    //std::cout << std::endl << logger.getFormattedStats(logger.getStats()) << std::endl;
+
     const int numLogs = TEST_PERFORMANCE_TEST_ENTRIES;
     auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -868,15 +917,23 @@ void testPerformance()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
+    {
+        std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
+    }
+
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
     auto stats = logger.getStats();
     std::cout << std::endl << "*** Performance Test ***" << std::endl;
     std::cout << "Logged " << numLogs << " messages in " << duration << " ms" << std::endl;
-    std::cout << "Total tasks processed: " << stats.totalTasksProcessed << std::endl;
-    std::cout << "Average processing time: " << stats.averageProcessingTime << " ms" << std::endl;
-    std::cout << "Max processing time: " << stats.maxProcessingTime << " ms" << std::endl;
+
+    // Get Stats
+    std::cout << std::endl << Logger::getFormattedStats(stats) << std::endl;
 }
 
 /**
@@ -897,6 +954,8 @@ void testConfigSaveLoad()
     assert(loadedConfig.databaseUser == TEST_CONFIG.databaseUser);
     assert(loadedConfig.databasePass == TEST_CONFIG.databasePass);
     assert(loadedConfig.databaseType == TEST_CONFIG.databaseType);
+    assert(loadedConfig.useBatch == TEST_CONFIG.useBatch);
+    assert(loadedConfig.batchSize == TEST_CONFIG.batchSize);
 #ifdef USE_SOURCE_INFO
     assert(loadedConfig.sourceUuid == TEST_CONFIG.sourceUuid);
     assert(loadedConfig.sourceName == TEST_CONFIG.sourceName);
@@ -931,6 +990,9 @@ void testSourceInfo()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    // flush batched logs for testing purposes
+    logger.flush();
+
     // Retrieve logs for the specific sourceId
     LogEntryList sourceIdLogs = logger.getLogsBySourceId(sourceId);
 
@@ -959,7 +1021,7 @@ void testSourceInfo()
 void testGetAllSources()
 {
 #ifdef USE_SOURCE_INFO
-    // Clear the database before starting the test
+    // Clear the database and sources before starting the test
     logger.clearLogs(true);
 
     // Add the source to the database and get its sourceId
@@ -1061,7 +1123,7 @@ void testMultiConnectionStress()
 #ifdef USE_SOURCE_INFO
         SourceInfo srcInfo;
         srcInfo.name = "STRESS_SOURCE_" + std::to_string(connId);
-        srcInfo.uuid = generateUUID(); // Your UUID generation function
+        srcInfo.uuid = generateUUID();
 
         // Create logger with unique source
         auto db = DatabaseFactory::create(dbType, connString);
@@ -1124,6 +1186,48 @@ void testMultiConnectionStress()
     std::cout << "testMultiConnectionStress passed!" << std::endl;
 }
 
+void testLimitOffset()
+{
+    // Clear the database before starting the test
+    logger.clearLogs();
+    const int numLogs = 10;
+    const int limit = 3;
+    const int offset = 5;
+    std::vector<Filter> filters = {}; // No filters
+
+    for(int i = 0; i < numLogs; ++i)
+    {
+        LOG_INFO(logger) << "Log " << i;
+    }
+
+    // Wait until all logs are written
+    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
+    {
+        std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
+    }
+
+    // flush batched logs for testing purposes
+    logger.flush();
+
+    // Retrieve all logs
+    LogEntryList allLogs = logger.getAllLogs();
+
+    // Retrieve logs using the limit and offset
+    LogEntryList limitedLogs = logger.getLogsByFilters(filters, limit, offset);
+
+    printLogs(limitedLogs);
+
+    assert(limitedLogs.size() == limit);
+    assert(allLogs.size() == numLogs);
+
+    // Compare messages
+    assert(limitedLogs[0].message == allLogs[offset].message);
+    assert(limitedLogs[1].message == allLogs[offset + 1].message);
+    assert(limitedLogs[2].message == allLogs[offset + 2].message);
+
+    std::cout << "testLimitOffset passed!" << std::endl;
+}
+
 /**
  * @brief Cleanup function to shut down the logger.
  */
@@ -1148,6 +1252,9 @@ int main()
 #elif defined(TEST_DB_POSTGRESQL)
     std::cout << DB_TYPE_STR_POSTGRESQL << " database" << std::endl;
     std::cout << TEST_CONN_STRING << std::endl;
+#elif defined(TEST_DB_MONGODB)
+    std::cout << DB_TYPE_STR_MONGODB << " database" << std::endl;
+    std::cout << TEST_CONN_STRING << std::endl;
 #endif
 
 
@@ -1156,6 +1263,13 @@ int main()
 #else
     std::cout << "Sync Mode: OFF" << std::endl;
     std::cout << "Number of threads: " << TEST_NUM_THREADS << std::endl;
+#endif
+
+#if TEST_USE_BATCH == 1
+    std::cout << "Batch insert: ON" << std::endl;
+    std::cout << "Batch size: " << TEST_BATCH_SIZE << std::endl;
+#else
+    std::cout << "Batch Insert: OFF" << std::endl;
 #endif
 
 #ifdef USE_SOURCE_INFO
@@ -1185,7 +1299,7 @@ int main()
         testFilterByFile();
         testFilterByTimestampRange();
         testMultiFilters();
-
+        testLimitOffset();
 #ifdef USE_SOURCE_INFO
         testSourceInfo();
         testGetSourceByUuid();

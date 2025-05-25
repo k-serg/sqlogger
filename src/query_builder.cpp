@@ -34,12 +34,16 @@ std::string QueryBuilder::buildInsert(DataBaseType dbType,
     switch(dbType)
     {
         case DataBaseType::Mock:
+            return SQLBuilder::buildSQLInsert(table, values, DB_PARAM_PREFIX_MOCK, dbType);
+
         case DataBaseType::SQLite:
+            return SQLBuilder::buildSQLInsert(table, values, DB_PARAM_PREFIX_SQLITE, dbType);
+
         case DataBaseType::MySQL:
-            return SQLBuilder::buildSQLInsert(table, values, "?", dbType);
+            return SQLBuilder::buildSQLInsert(table, values, DB_PARAM_PREFIX_MYSQL, dbType);
 
         case DataBaseType::PostgreSQL:
-            return SQLBuilder::buildSQLInsert(table, values, "$", dbType);
+            return SQLBuilder::buildSQLInsert(table, values, DB_PARAM_PREFIX_POSTGRESQL, dbType);
 
 #ifdef USE_MONGODB
         case DataBaseType::MongoDB:
@@ -282,3 +286,35 @@ std::string QueryBuilder::buildIndexExistsQuery(DataBaseType dbType, const std::
             throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
     }
 };
+
+/**
+ * @brief Builds a batch INSERT query optimized for the specified database type.
+ * @param table Name of the table to insert into.
+ * @param fields Vector of column names to insert.
+ * @param numRows Number of rows to include in the batch.
+ * @param dbType Database type to generate query for.
+ * @return std::string The constructed batch INSERT query.
+ * @throw std::runtime_error If unsupported database type is provided.
+ */
+std::string QueryBuilder::buildBatchInsert(const std::string& table,
+        const std::vector<std::string> & fields,
+        const size_t numRows,
+        const DataBaseType dbType)
+{
+    switch(dbType)
+    {
+        case DataBaseType::Mock:
+        case DataBaseType::SQLite:
+        case DataBaseType::MySQL:
+        case DataBaseType::PostgreSQL:
+            return SQLBuilder::buildSQLBatchInsert(table, fields, numRows, dbType);
+
+#ifdef USE_MONGODB
+        case DataBaseType::MongoDB:
+            return "";
+
+#endif
+        default:
+            throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
+    }
+}

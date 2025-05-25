@@ -46,6 +46,15 @@ class LogWriter
         bool writeLog(const LogEntry& entry);
 
         /**
+        * @brief Executes a batch insert of log entries into the database.
+        * Constructs and executes a parameterized batch INSERT query optimized for the current database type.
+        * @param entries List of log entries to insert. Each entry must contain all required fields.
+        * @return bool True if the batch insert succeeded, false otherwise.
+        * @throws std::runtime_error If database execution fails (handled internally).
+        */
+        bool LogWriter::writeLogBatch(const LogEntryList& entries);
+
+        /**
          * @brief Clears all log entries from the database.
          */
         void clearLogs();

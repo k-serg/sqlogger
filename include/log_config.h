@@ -38,6 +38,8 @@ constexpr LogLevel LOG_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log
 #define LOG_INI_KEY_NUM_THREADS "NumThreads"
 #define LOG_INI_KEY_ONLY_FILE_NAMES "OnlyFileNames"
 #define LOG_INI_KEY_MIN_LOG_LEVEL "MinLogLevel"
+#define LOG_INI_KEY_USE_BATCH "UseBatch"
+#define LOG_INI_KEY_BATCH_SIZE "BatchSize"
 
 #define LOG_INI_SECTION_DATABASE "Database"
 #define LOG_INI_KEY_DATABASE_NAME "Database"
@@ -108,6 +110,8 @@ namespace LogConfig
         std::optional<std::string> databaseUser; ///< Username for the database.
         std::optional<std::string> databasePass; ///< Password for the database.
         std::optional<DataBaseType> databaseType; ///< Type of the database (e.g., MySQL, SQLite).
+        std::optional<bool> useBatch;
+        std::optional<int> batchSize;
 #ifdef USE_SOURCE_INFO
         std::optional<std::string> sourceUuid;  /**< The universally unique identifier (UUID) of the source. */
         std::optional<std::string> sourceName;  /**< The name of the source. */

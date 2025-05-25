@@ -112,6 +112,14 @@ namespace LogConfig
             {
                 config.minLogLevel = LogHelper::stringToLevel(loggerSection.at(LOG_INI_KEY_MIN_LOG_LEVEL));
             }
+            if(loggerSection.count(LOG_INI_KEY_USE_BATCH))
+            {
+                config.useBatch = (loggerSection.at(LOG_INI_KEY_USE_BATCH) == "true");
+            }
+            if(loggerSection.count(LOG_INI_KEY_BATCH_SIZE))
+            {
+                config.batchSize = std::stoi(loggerSection.at(LOG_INI_KEY_BATCH_SIZE));
+            }
         }
         if(iniData.count(LOG_INI_SECTION_DATABASE))
         {
@@ -194,6 +202,14 @@ namespace LogConfig
         if(config.minLogLevel.has_value())
         {
             iniData[LOG_INI_SECTION_LOGGER][LOG_INI_KEY_MIN_LOG_LEVEL] = LogHelper::levelToString(config.minLogLevel.value());
+        }
+        if(config.useBatch.has_value())
+        {
+            iniData[LOG_INI_SECTION_LOGGER][LOG_INI_KEY_USE_BATCH] = config.useBatch.value() ? "true" : "false";
+        }
+        if(config.batchSize.has_value())
+        {
+            iniData[LOG_INI_SECTION_LOGGER][LOG_INI_KEY_BATCH_SIZE] = std::to_string(config.batchSize.value());
         }
         if(config.databaseName.has_value())
         {

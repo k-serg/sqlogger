@@ -31,6 +31,19 @@
 #define DB_TYPE_STR_MONGODB "MongoDB"
 #define DB_TYPE_STR_UNKNOWN "UNKNOWN"
 
+#define DB_PARAM_PREFIX_DEFAULT "?"
+#define DB_PARAM_PREFIX_MOCK DB_PARAM_PREFIX_DEFAULT
+#define DB_PARAM_PREFIX_SQLITE DB_PARAM_PREFIX_DEFAULT
+#define DB_PARAM_PREFIX_MYSQL DB_PARAM_PREFIX_DEFAULT
+#define DB_PARAM_PREFIX_POSTGRESQL "$"
+
+#define DB_BATCH_NOT_SUPPORTED -1
+#define DB_MAX_BATCH_DEFAULT 500
+#define DB_MAX_BATCH_MOCK 0
+#define DB_MAX_BATCH_SQLITE 1000
+#define DB_MAX_BATCH_MYSQL 5000
+#define DB_MAX_BATCH_POSTGRESQL 10000
+
 /**
  * @enum DataBaseType
  * @brief Enumeration representing the type of database.
@@ -75,6 +88,26 @@ namespace DataBaseHelper
      * @return The string representation of the database type.
      */
     std::string databaseTypeToString(const DataBaseType& type);
+
+    /**
+    * @brief Gets the database-specific parameter prefix string for the given database type.
+    * @param type The database type to get the prefix for.
+    * @return std::string The parameter prefix string specific to the database type.
+    * @throw std::invalid_argument If an unsupported database type is provided.
+    * @note For MongoDB, returns an empty string as it doesn't use parameter prefixes.
+    * @see DB_PARAM_PREFIX_MOCK, DB_PARAM_PREFIX_SQLITE, DB_PARAM_PREFIX_MYSQL, DB_PARAM_PREFIX_POSTGRESQL.
+    */
+    std::string databaseTypePrefix(const DataBaseType& type);
+
+    /**
+    * @brief Gets the maximum recommended batch size for the given database type.
+    * @param type The database type to get the batch size limit for.
+    * @return int Maximum recommended batch size for the database type.
+    * @throw std::invalid_argument If an unsupported database type is provided.
+    * @note Returns DB_BATCH_NOT_SUPPORTED (-1) for Mock and MongoDB databases (no batching supported).
+    * @see DB_MAX_BATCH_SQLITE, DB_MAX_BATCH_MYSQL, DB_MAX_BATCH_POSTGRESQL.
+    */
+    int getMaxBatchSize(const DataBaseType& type);
 
     /**
      * @brief Escapes backslashes in a string.

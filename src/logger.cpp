@@ -34,12 +34,11 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
       reader( * this->database),
       threadPool(config.numThreads.value_or(LOG_NUM_THREADS)),
       running(true),
-      totalTasksProcessed(0),
-      totalProcessingTime(0),
-      maxProcessingTime(0),
       minLevel(config.minLogLevel.value_or(LOG_MIN_LOG_LEVEL)),
       syncMode(config.syncMode.value_or(LOG_SYNC_MODE)),
-      onlyFileNames(config.onlyFileNames.value_or(LOG_ONLY_FILE_NAMES))
+      onlyFileNames(config.onlyFileNames.value_or(LOG_ONLY_FILE_NAMES)),
+      useBatch(config.useBatch.value_or(false)),
+      batchSize(config.batchSize.value_or(DB_MAX_BATCH_DEFAULT))
 #ifdef USE_SOURCE_INFO
     , sourceInfo(sourceInfo)
     , sourceId(sourceInfo.has_value() && sourceInfo.value().sourceId != SOURCE_NOT_FOUND ? sourceInfo.value().sourceId : SOURCE_NOT_FOUND)
@@ -107,6 +106,10 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
  */
 Logger::~Logger()
 {
+    if(useBatch)
+    {
+        flushBatch();
+    }
     shutdown();
 }
 
@@ -164,27 +167,43 @@ void Logger::logAdd(const LogLevel level, const std::string& message, const std:
     }
 #endif
 
-    if(syncMode)
+    LogTask task
     {
-        LogTask task{ level, message, function, fileName, line, threadId, std::chrono::system_clock::now()
+        level,
+        message,
+        function,
+        fileName,
+        line,
+        threadId,
+        std::chrono::system_clock::now()
 #ifdef USE_SOURCE_INFO
-                      , sourceId
+        , sourceId
 #endif
-                    };
-        processTask(task);
+    };
+
+    if(useBatch)
+    {
+        std::lock_guard<std::recursive_mutex> lock(batchMutex);
+        batchBuffer.push_back(task);
+
+        if(batchBuffer.size() >= batchSize)
+        {
+            flushBatch();
+        }
     }
     else
     {
-        threadPool.enqueue([this, level, message, function, fileName, line, threadId]
+        if(syncMode)
         {
-            LogTask task{
-                level, message, function, fileName, line, threadId, std::chrono::system_clock::now()
-#ifdef USE_SOURCE_INFO
-                , sourceId
-#endif
-            };
             processTask(task);
-        });
+        }
+        else
+        {
+            threadPool.enqueue([this, task]
+            {
+                processTask(task);
+            });
+        }
     }
 }
 
@@ -225,75 +244,40 @@ void Logger::exportTo(const std::string& filePath, const LogExport::Format& form
     LogExport::exportTo(filePath, format, entryList, delimiter, name);
 }
 
-
 /**
  * @brief Processes a single log task.
  * @param task The log task to process.
  */
 void Logger::processTask(const LogTask& task)
 {
+    auto startTime = std::chrono::high_resolution_clock::now();
+    bool success = false;
+
     try
     {
-        auto startTime = std::chrono::high_resolution_clock::now();
+        std::scoped_lock lock(dbMutex, statsMutex);
+        std::string levelStr = levelToString(task.level);
+        std::string timestamp = getCurrentTimestamp();
+
+        LogEntry entry = convertTaskToEntry(task);
+
+        if(!writer.writeLog(entry))
         {
-            std::scoped_lock lock(dbMutex, statsMutex);
-            std::string levelStr = levelToString(task.level);
-            std::string timestamp = getCurrentTimestamp();
-
-            LogEntry entry
-            {
-                0,
-#ifdef USE_SOURCE_INFO
-                task.sourceId,
-#endif
-                timestamp,
-                levelStr,
-                task.message,
-                task.function,
-                task.file,
-                task.line,
-                task.threadId
-#ifdef USE_SOURCE_INFO
-                , "", // uuid
-                "" // sourceName
-#endif
-            };
-
-#ifdef USE_SOURCE_INFO
-            if(task.sourceId != SOURCE_NOT_FOUND)
-            {
-                auto sourceInfo = reader.getSourceById(task.sourceId);
-                if(sourceInfo)
-                {
-                    entry.uuid = sourceInfo->uuid;
-                    entry.sourceName = sourceInfo->name;
-                }
-                else
-                {
-                    logError(ERR_MSG_SOURCE_NOT_FOUND + std::to_string(task.sourceId));
-                }
-            }
-#endif
-            if(!writer.writeLog(entry))
-            {
-                logError(ERR_MSG_FAILED_QUERY);
-            }
-
-            auto endTime = std::chrono::high_resolution_clock::now();
-            double taskTime = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-
-            totalTasksProcessed++;
-            totalProcessingTime += taskTime;
-            if(taskTime > maxProcessingTime)
-            {
-                maxProcessingTime = taskTime;
-            }
+            success = false;
+            logError(ERR_MSG_FAILED_QUERY);
         }
+
+        success = true;
     }
     catch(const std::exception& e)
     {
+        success = false;
         logError(ERR_MSG_FAILED_TASK + std::string(e.what()));
     }
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto taskTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+    updateSingleEntryStats(taskTime, success);
 }
 
 /**
@@ -302,56 +286,179 @@ void Logger::processTask(const LogTask& task)
  */
 void Logger::processBatch(const std::vector<LogTask> & batch)
 {
+    auto startTime = std::chrono::high_resolution_clock::now();
+    bool success = false;
+
     try
     {
-        auto startTime = std::chrono::high_resolution_clock::now();
+        std::scoped_lock lock(dbMutex, statsMutex);
+
+        // Convert tasks to entries
+        LogEntryList entries;
+        entries.reserve(batch.size());
+        for(const auto & task : batch)
         {
-            std::scoped_lock lock(dbMutex, statsMutex);
-            for(const auto & task : batch)
-            {
-                std::string levelStr = levelToString(task.level);
-                std::string timestamp = getCurrentTimestamp();
-
-                LogEntry entry
-                {
-                    0,  // id
-#ifdef USE_SOURCE_INFO
-                    task.sourceId,
-#endif
-                    timestamp,
-                    levelStr,
-                    task.message,
-                    task.function,
-                    task.file,
-                    task.line,
-                    task.threadId
-#ifdef USE_SOURCE_INFO
-                    , "", // uuid
-                    "" // sourceName
-#endif
-                };
-
-                if(!writer.writeLog(entry))
-                {
-                    logError(ERR_MSG_FAILED_QUERY);
-                }
-            }
-
-            auto endTime = std::chrono::high_resolution_clock::now();
-            double taskTime = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-
-            totalTasksProcessed += batch.size();
-            totalProcessingTime += taskTime;
-            if(taskTime > maxProcessingTime)
-            {
-                maxProcessingTime = taskTime;
-            }
+            entries.push_back(convertTaskToEntry(task));
         }
+
+        if(!writer.writeLogBatch(entries))
+        {
+            success = false;
+            logError(ERR_MSG_FAILED_BATCH_QUERY);
+        }
+
+        success = true;
     }
     catch(const std::exception& e)
     {
-        logError("Error in processBatch: " + std::string(e.what()));
+        success = false;
+        logError(ERR_MSG_FAILED_BATCH_TASK + std::string(e.what()));
     }
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto batchTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+
+    updateBatchStats(batch.size(), batchTime, success);
+}
+
+/**
+ * @brief Forces immediate processing (writes to the database) of all batched log entries, if useBatch = true.
+ * @see Config
+ * @see processBatch()
+ * @see syncMode
+ */
+void Logger::flush()
+{
+    if(useBatch)
+    {
+        flushBatch();
+    }
+}
+
+/**
+ * @brief Checks if batch logging mode is currently enabled.
+ * @return bool Current batch mode status (matches useBatch config value)
+ * @see setBatchSize()
+ * @see flushBatch()
+ * @see useBatch
+ * @see setBatchSize
+ */
+bool Logger::isBatchEnabled() const
+{
+    return useBatch;
+}
+
+/**
+ * @brief Sets the maximum batch size for buffered logging.
+ * Updates the batch size configuration and ensures thread-safe operation:
+ * 1. If reducing batch size, flushes current buffer if it exceeds new size
+ * 2. If disabling batching (size=0), performs immediate flush
+ * @param size New maximum batch size (0 to disable batching)
+ * @throws std::invalid_argument If size is negative or bigger than DB_MAX_BATCH_
+ * @see flush()
+ * @see isBatchEnabled()
+ * @see DataBaseHelper::getMaxBatchSize()
+ * @see DB_MAX_BATCH_SQLITE, DB_MAX_BATCH_MYSQL, DB_MAX_BATCH_POSTGRESQL.
+ */
+void Logger::setBatchSize(const int size)
+{
+    const int maxBatchSize = DataBaseHelper::getMaxBatchSize(database->getDatabaseType());
+
+    if(size > maxBatchSize || maxBatchSize == DB_BATCH_NOT_SUPPORTED)
+    {
+        throw std::invalid_argument("Batch size for selected database can't be negative or bigger than: " + maxBatchSize);
+    }
+
+    if(size < 0)
+    {
+        throw std::invalid_argument("Batch size can't be negative");
+    }
+
+    std::lock_guard<std::recursive_mutex> lock(batchMutex);
+
+    // Flush if: 1) Disabling batching, or 2) Shrinking below current buffer size
+    if((size == 0 && useBatch) || (useBatch && batchBuffer.size() > size))
+    {
+        flushBatch();
+    }
+
+    batchSize = size;
+    useBatch = (size > 0);
+}
+
+/**
+ * @brief Forces immediate processing (writes to the database) of all batched log entries, if useBatch = true.
+ * This method:
+ * 1. Atomically moves all entries from the batch buffer to a local vector
+ * 2. Processes them either:
+ * - Synchronously (in current thread) if syncMode=true
+ * - Asynchronously (via thread pool) if syncMode=false
+ * @see Config
+ * @see processBatch()
+ * @see syncMode
+ */
+void Logger::flushBatch()
+{
+    if(batchBuffer.empty()) return;
+
+    std::vector<LogTask> currentBatch;
+    {
+        std::lock_guard<std::recursive_mutex> lock(batchMutex);
+        currentBatch.swap(batchBuffer);
+    }
+
+    if(syncMode)
+    {
+        processBatch(currentBatch);
+    }
+    else
+    {
+        threadPool.enqueue([this, currentBatch]
+        {
+            processBatch(currentBatch);
+        });
+    }
+}
+
+/**
+ * @brief Converts an internal LogTask structure to a persistent LogEntry.
+ * @param task The source LogTask containing raw logging information.
+ * @return LogEntry Log entry ready for storage.
+ * @note Automatically generates timestamp and log level in string representation.
+ * @warning The returned entry's ID field will be 0 until stored in database.
+ * @warning Returned LogEntry not contain SourceInfo information.
+ */
+LogEntry Logger::convertTaskToEntry(const LogTask& task) const
+{
+    std::string fileName(task.file);
+    if(onlyFileNames)
+    {
+        fileName = std::filesystem::path(fileName).filename().string();
+    }
+
+    std::string levelStr = levelToString(task.level);
+    std::string timestamp = getCurrentTimestamp();
+
+    LogEntry entry
+    {
+        0,
+#ifdef USE_SOURCE_INFO
+        task.sourceId,
+#endif
+        timestamp,
+        levelStr,
+        task.message,
+        task.function,
+        task.file,
+        task.line,
+        task.threadId
+#ifdef USE_SOURCE_INFO
+        , "" // uuid (empty)
+        , "" // sourceName (empty)
+#endif
+    };
+
+    return entry;
 }
 
 /**
@@ -393,18 +500,128 @@ void Logger::clearLogs(
 }
 
 /**
+ * @brief Updates statistics for a single log entry processing operation.
+ * This method updates internal performance metrics when a single log entry
+ * has been processed (written to database or exported).
+ * @param processTimeMs The time taken to process the log entry in milliseconds.
+ * @param success Whether the operation was successful (default: true).
+ * If false, increments the failed entries counter.
+ */
+void Logger::updateSingleEntryStats(const uint64_t processTimeMs,
+                                    const bool success)
+{
+    std::lock_guard<std::mutex> lock(statsMutex);
+
+    currentStats.totalLogged++;
+    if(!success) currentStats.totalFailed++;
+
+    if(processTimeMs > currentStats.maxProcessTimeMs)
+    {
+        currentStats.maxProcessTimeMs = processTimeMs;
+    }
+    currentStats.totalProcessTimeMs += processTimeMs;
+}
+
+/**
+ * @brief Updates statistics for batch log entries processing.
+ * Updates aggregated performance metrics when a batch of log entries
+ * has been processed. Handles both successful and failed batch operations.
+ * @param batchSize Number of log entries in the processed batch.
+ * @param processTimeMs Total time taken to process the entire batch in milliseconds.
+ * @param success Whether the batch operation succeeded (default: true).
+ * If false, all entries in batch are counted as failed.
+ */
+void Logger::updateBatchStats(const size_t batchSize,
+                              const uint64_t processTimeMs,
+                              const bool success)
+{
+    std::lock_guard<std::mutex> lock(statsMutex);
+
+    currentStats.totalLogged += batchSize;
+    if(!success) currentStats.totalFailed += batchSize;
+
+    currentStats.maxBatchSize = std::max(currentStats.maxBatchSize, batchSize);
+
+    currentStats.minBatchSize = currentStats.flushCount == 0 ? batchSize : std::min(currentStats.minBatchSize, batchSize);
+
+    currentStats.avgBatchSize = (currentStats.avgBatchSize* currentStats.flushCount + batchSize) /
+                                (currentStats.flushCount + 1);
+
+    currentStats.maxProcessTimeMs = std::max(currentStats.maxProcessTimeMs, processTimeMs);
+
+    currentStats.totalProcessTimeMs += processTimeMs;
+    currentStats.flushCount++;
+}
+
+/**
  * @brief Retrieves statistics about the logger.
  * @return The statistics about the logger.
  */
 Logger::Stats Logger::getStats() const
 {
-    std::scoped_lock lock(statsMutex);
-    return Stats
-    {
-        totalTasksProcessed,
-        totalTasksProcessed > 0 ? totalProcessingTime / totalTasksProcessed : 0,
-        maxProcessingTime
-    };
+    std::lock_guard<std::mutex> lock(statsMutex);
+    return currentStats;
+}
+
+/**
+ * @brief Resets all logging statistics to zero.
+ * Atomically clears all accumulated performance metrics including:
+ * - Total logged/failed entries
+ * - Batch processing statistics
+ * - Timing measurements
+ * @see getStats()
+ */
+void Logger::resetStats()
+{
+    std::lock_guard<std::mutex> lock(statsMutex);
+    currentStats = {};
+}
+
+/**
+ * @brief Generates a human-readable string representation of logging statistics (static method).
+ * Formats all collected performance metrics into a multi-section text report with:
+ * - Entry counts (total and failed)
+ * - Batch processing statistics
+ * - Timing measurements
+ * @param stats The Stats structure containing metrics to format
+ * @return std::string Formatted report with newline-separated sections:
+ * @see Stats
+ * @see getStats()
+ */
+std::string Logger::getFormattedStats(const Stats stats)
+{
+    std::ostringstream ss;
+
+    ss << "Logging statistics:" << std::endl
+       << "[Entries]" << std::endl
+       << "Total entries: " << stats.totalLogged << "" << std::endl
+       << "Failed entries: " << stats.totalFailed << "" << std::endl
+       << "[Batch statistics]" << std::endl
+       << "Max size: " << stats.maxBatchSize << "" << std::endl
+       << "Min size: " << stats.minBatchSize << "" << std::endl
+       << "Avg size: " << std::fixed << std::setprecision(2) << stats.avgBatchSize << "" << std::endl
+       << "Flush operations: " << stats.flushCount << "" << std::endl
+       << "[Performance]" << std::endl
+       << "Max process time: " << stats.maxProcessTimeMs << " ms" << std::endl
+       << "Avg process time: " << stats.avgProcessTime() << " ms" << std::endl;
+    return ss.str();
+}
+
+/**
+* @brief Generates a human-readable string representation of the current logging statistics.
+* Formats all collected performance metrics into a multi-section text report with:
+* - Entry counts (total and failed)
+* - Batch processing statistics
+* - Timing measurements
+* @param stats The Stats structure containing metrics to format
+* @return std::string Formatted report with newline-separated sections:
+* @see Stats
+* @see getStats()
+*/
+std::string Logger::getFormattedStats() const
+{
+    std::lock_guard<std::mutex> lock(statsMutex);
+    return Logger::getFormattedStats(currentStats);
 }
 
 /**
@@ -557,6 +774,39 @@ LogEntryList Logger::getLogsByFunction(const std::string& function,
 void Logger::setLogLevel(LogLevel minLevel)
 {
     this->minLevel = minLevel;
+}
+
+/**
+ * @brief Gets the minimum log level that will be processed by the logger.
+ * @return LogLevel The current minimum log level.
+ * @see setLogLevel()
+ */
+LogLevel Logger::getMinLogLevel() const
+{
+    return minLevel;
+}
+
+/**
+ * @brief Gets the type of database currently used by the logger.
+ * @return DataBaseType The database type (SQLite, MySQL, PostgreSQL, etc.).
+ * @see DataBaseType
+ */
+DataBaseType Logger::getDataBaseType()
+{
+    std::scoped_lock lock(dbMutex);
+    return database->getDatabaseType();
+}
+
+/**
+ * @brief Checks whether logging operations execute synchronously in calling thread.
+ * When true, log operations block until fully completed. When false,
+ * logs are queued and processed asynchronously in background threads.
+ * @return bool True if logging executes synchronously in calling thread,
+ * false if using asynchronous background processing.
+ */
+bool Logger::isSyncMode() const
+{
+    return syncMode;
 }
 
 #ifdef USE_SOURCE_INFO

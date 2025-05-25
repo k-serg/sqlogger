@@ -56,6 +56,61 @@ bool LogWriter::writeLog(const LogEntry& entry)
 }
 
 /**
+ * @brief Executes a batch insert of log entries into the database.
+ * Constructs and executes a parameterized batch INSERT query optimized for the current database type.
+ * @param entries List of log entries to insert. Each entry must contain all required fields.
+ * @return bool True if the batch insert succeeded, false otherwise.
+ * @throws std::runtime_error If database execution fails (handled internally).
+ */
+bool LogWriter::writeLogBatch(const LogEntryList& entries)
+{
+    if(entries.empty()) return true;
+
+    const std::vector<std::string> fields =
+    {
+#ifdef USE_SOURCE_INFO
+        FIELD_LOG_SOURCES_ID,
+#endif
+        FIELD_LOG_TIMESTAMP,
+        FIELD_LOG_LEVEL,
+        FIELD_LOG_MESSAGE,
+        FIELD_LOG_FUNCTION,
+        FIELD_LOG_FILE,
+        FIELD_LOG_LINE,
+        FIELD_LOG_THREAD_ID
+    };
+
+    std::string query = QueryBuilder::buildBatchInsert(
+                            LOG_TABLE_NAME,
+                            fields,
+                            entries.size(),
+                            database.getDatabaseType()
+                        );
+
+    // SQL
+    std::vector<std::string> params;
+    if(database.getDatabaseType() != DataBaseType::MongoDB)
+    {
+        params.reserve(entries.size() * fields.size());
+        for(const auto & entry : entries)
+        {
+#ifdef USE_SOURCE_INFO
+            params.push_back(std::to_string(entry.sourceId));
+#endif
+            params.push_back(entry.timestamp);
+            params.push_back(entry.level);
+            params.push_back(entry.message);
+            params.push_back(entry.function);
+            params.push_back(entry.file);
+            params.push_back(std::to_string(entry.line));
+            params.push_back(entry.threadId);
+        }
+    }
+
+    return database.execute(query, params);
+}
+
+/**
  * @brief Clears all log entries from the database.
  */
 void LogWriter::clearLogs()

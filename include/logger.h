@@ -88,10 +88,64 @@ class LOGGER_API Logger
          */
         struct Stats
         {
-            std::atomic<size_t> totalTasksProcessed; /**< Total number of tasks processed. */
-            std::atomic<double> averageProcessingTime; /**< Average processing time per task. */
-            std::atomic<double> maxProcessingTime; /**< Maximum processing time for a task. */
+            uint64_t totalLogged = 0;
+            uint64_t totalFailed = 0;
+            uint64_t maxBatchSize = 0;
+            uint64_t minBatchSize = 0;
+            double avgBatchSize = 0.0;
+            uint64_t maxProcessTimeMs = 0;
+            uint64_t totalProcessTimeMs = 0;
+            uint32_t flushCount = 0;
+
+            double avgProcessTime() const
+            {
+                return (totalLogged > 0)
+                       ? static_cast<double>(totalProcessTimeMs) / totalLogged
+                       : 0.0;
+            };
         };
+
+        /**
+        * @brief Retrieves statistics about the logger.
+        * @return The statistics about the logger.
+        * @see Stats
+        */
+        Stats getStats() const;
+
+        /**
+        * @brief Resets all logging statistics to zero.
+        * Atomically clears all accumulated performance metrics including:
+        * - Total logged/failed entries
+        * - Batch processing statistics
+        * - Timing measurements
+        * @see getStats()
+        */
+        void resetStats();
+
+        /**
+        * @brief Generates a human-readable string representation of logging statistics (static method).
+        * Formats all collected performance metrics into a multi-section text report with:
+        * - Entry counts (total and failed)
+        * - Batch processing statistics
+        * - Timing measurements
+        * @param stats The Stats structure containing metrics to format
+        * @return std::string Formatted report with newline-separated sections:
+        * @see Stats
+        * @see getStats()
+        */
+        static std::string getFormattedStats(const Stats);
+
+        /**
+        * @brief Generates a human-readable string representation of the current logging statistics.
+        * Formats all collected performance metrics into a multi-section text report with:
+        * - Entry counts (total and failed)
+        * - Batch processing statistics
+        * - Timing measurements
+        * @return std::string Formatted report with newline-separated sections:
+        * @see Stats
+        * @see getStats()
+        */
+        std::string getFormattedStats() const;
 
         /**
          * @brief Constructs a Logger object.
@@ -129,12 +183,6 @@ class LOGGER_API Logger
             const bool clearSources = false
 #endif
         );
-
-        /**
-         * @brief Retrieves statistics about the logger.
-         * @return The statistics about the logger.
-         */
-        Stats getStats() const;
 
         /**
         * @brief Retrieves log entries from the database matching specified filters.
@@ -245,6 +293,61 @@ class LOGGER_API Logger
         */
         static void exportTo(const std::string& filePath, const LogExport::Format& format, const LogEntryList& entryList, const std::string& delimiter = ENTRY_DELIMITER, bool name = true);
 
+        /**
+         * @brief Forces immediate processing (writes to the database) of all batched log entries, if useBatch = true.
+         * @see Config
+         * @see processBatch()
+         * @see syncMode
+         */
+        void flush();
+
+        /**
+         * @brief Sets the maximum batch size for buffered logging.
+         * Updates the batch size configuration and ensures thread-safe operation:
+         * 1. If reducing batch size, flushes current buffer if it exceeds new size
+         * 2. If disabling batching (size=0), performs immediate flush
+         * @param size New maximum batch size (0 to disable batching)
+         * @throws std::invalid_argument If size is negative or bigger than DB_MAX_BATCH_
+         * @see flush()
+         * @see isBatchEnabled()
+         * @see DataBaseHelper::getMaxBatchSize()
+         * @see DB_MAX_BATCH_SQLITE, DB_MAX_BATCH_MYSQL, DB_MAX_BATCH_POSTGRESQL.
+         */
+        void setBatchSize(const int size);
+
+        /**
+        * @brief Checks if batch logging mode is currently enabled.
+        * @return bool Current batch mode status (matches useBatch config value)
+        * @see setBatchSize()
+        * @see flushBatch()
+        * @see useBatch
+        * @see setBatchSize
+        */
+        bool isBatchEnabled() const;
+
+        /**
+         * @brief Gets the type of database currently used by the logger.
+         * @return DataBaseType The database type (SQLite, MySQL, PostgreSQL, etc.).
+         * @see DataBaseType
+         */
+        DataBaseType getDataBaseType();
+
+        /**
+         * @brief Gets the minimum log level that will be processed by the logger.
+         * @return LogLevel The current minimum log level.
+         * @see setLogLevel()
+         */
+        LogLevel getMinLogLevel() const;
+
+        /**
+        * @brief Checks whether logging operations execute synchronously in calling thread.
+        * When true, log operations block until fully completed. When false,
+        * logs are queued and processed asynchronously in background threads.
+        * @return bool True if logging executes synchronously in calling thread,
+        * false if using asynchronous background processing.
+        */
+        bool isSyncMode() const;
+
 #ifdef USE_SOURCE_INFO
         /**
         * @brief Adds a new source to the database.
@@ -345,10 +448,54 @@ class LOGGER_API Logger
         void processBatch(const std::vector<LogTask> & batch);
 
         /**
+         * @brief Forces immediate processing (writes to the database) of all batched log entries, if useBatch = true.
+         * This method:
+         * 1. Atomically moves all entries from the batch buffer to a local vector
+         * 2. Processes them either:
+         * - Synchronously (in current thread) if syncMode=true
+         * - Asynchronously (via thread pool) if syncMode=false
+         * @see Config
+         * @see processBatch()
+         * @see syncMode
+         */
+        void flushBatch();
+
+        /**
+        * @brief Converts an internal LogTask structure to a persistent LogEntry.
+        * @param task The source LogTask containing raw logging information.
+        * @return LogEntry Log entry ready for storage.
+        * @note Automatically generates timestamp and log level in string representation.
+        * @warning The returned entry's ID field will be 0 until stored in database.
+        * @warning Returned LogEntry not contain SourceInfo information.
+        */
+        LogEntry convertTaskToEntry(const LogTask& task) const;
+
+        /**
          * @brief Logs an error message to the error log file.
          * @param errorMessage The error message to log.
          */
         void logError(const std::string& errorMessage);
+
+        /**
+         * @brief Updates statistics for a single log entry processing operation.
+         * This method updates internal performance metrics when a single log entry
+         * has been processed (written to database or exported).
+         * @param processTimeMs The time taken to process the log entry in milliseconds.
+         * @param success Whether the operation was successful (default: true).
+         * If false, increments the failed entries counter.
+         */
+        void updateSingleEntryStats(const uint64_t processTimeMs, const bool success = true);
+
+        /**
+         * @brief Updates statistics for batch log entries processing.
+         * Updates aggregated performance metrics when a batch of log entries
+         * has been processed. Handles both successful and failed batch operations.
+         * @param batchSize Number of log entries in the processed batch.
+         * @param processTimeMs Total time taken to process the entire batch in milliseconds.
+         * @param success Whether the batch operation succeeded (default: true).
+         * If false, all entries in batch are counted as failed.
+         */
+        void updateBatchStats(const size_t batchSize, const uint64_t processTimeMs, const bool success = true);
 
         std::unique_ptr<IDatabase> database; /**< The database interface used for logging. */
         LogWriter writer; /**< The log writer used for writing log entries. */
@@ -359,14 +506,18 @@ class LOGGER_API Logger
         std::mutex logMutex; /**< Mutex for log access synchronization. */
 
         std::atomic<bool> running; /**< Flag indicating whether the logger is running. */
-        size_t totalTasksProcessed; /**< Total number of tasks processed. */
-        double totalProcessingTime; /**< Total processing time for all tasks. */
-        double maxProcessingTime; /**< Maximum processing time for a single task. */
+
         mutable std::mutex statsMutex; /**< Mutex for statistics synchronization. */
+        Stats currentStats; /**< Current logger statistics. */
 
         LogLevel minLevel; /**< Minimum log level for messages to be logged. */
         bool syncMode; /**< Whether the logger is in synchronous mode. */
         bool onlyFileNames; /**< Log only filenames or full path to the file. */
+
+        std::recursive_mutex batchMutex; /**< Mutex for batch access synchronization. */
+        bool useBatch; /**< Use batches for log writing. */
+        int batchSize; /**< Batch size (entries). */
+        std::vector<LogTask> batchBuffer; /**< Batch buffer (LogTasks). */
 
 #ifdef USE_SOURCE_INFO
         std::atomic<int> sourceId; /**< The source ID. */

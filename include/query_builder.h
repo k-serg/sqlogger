@@ -151,6 +151,20 @@ class QueryBuilder
          */
         static std::string buildIndexExistsQuery(DataBaseType dbType, const std::string& indexName);
 
+        /**
+        * @brief Builds a batch INSERT query optimized for the specified database type.
+        * @param table Name of the table to insert into.
+        * @param fields Vector of column names to insert.
+        * @param numRows Number of rows to include in the batch.
+        * @param dbType Database type to generate query for.
+        * @return std::string The constructed batch INSERT query.
+        * @throw std::runtime_error If unsupported database type is provided.
+        */
+        static std::string buildBatchInsert(const std::string& table,
+                                            const std::vector<std::string> & fields,
+                                            const size_t numRows,
+                                            const DataBaseType dbType);
+
         QueryBuilder() = delete;
         QueryBuilder(const QueryBuilder&) = delete;
         QueryBuilder& operator=(const QueryBuilder&) = delete;

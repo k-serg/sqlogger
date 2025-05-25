@@ -65,6 +65,72 @@ std::string DataBaseHelper::databaseTypeToString(const DataBaseType& type)
 };
 
 /**
+ * @brief Gets the database-specific parameter prefix string for the given database type.
+ * @param type The database type to get the prefix for.
+ * @return std::string The parameter prefix string specific to the database type.
+ * @throw std::invalid_argument If an unsupported database type is provided.
+ * @note For MongoDB, returns an empty string as it doesn't use parameter prefixes.
+ * @see DB_PARAM_PREFIX_MOCK, DB_PARAM_PREFIX_SQLITE, DB_PARAM_PREFIX_MYSQL, DB_PARAM_PREFIX_POSTGRESQL.
+ */
+std::string DataBaseHelper::databaseTypePrefix(const DataBaseType& type)
+{
+    switch(type)
+    {
+        case DataBaseType::Mock:
+            return DB_PARAM_PREFIX_MOCK;
+            break;
+        case DataBaseType::SQLite:
+            return DB_PARAM_PREFIX_SQLITE;
+            break;
+        case DataBaseType::MySQL:
+            return DB_PARAM_PREFIX_MYSQL;
+            break;
+        case DataBaseType::PostgreSQL:
+            return DB_PARAM_PREFIX_POSTGRESQL;
+            break;
+        case DataBaseType::MongoDB:
+            return "";
+            break;
+        default:
+            throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
+            break;
+    }
+};
+
+/**
+ * @brief Gets the maximum recommended batch size for the given database type.
+ * @param type The database type to get the batch size limit for.
+ * @return int Maximum recommended batch size for the database type.
+ * @throw std::invalid_argument If an unsupported database type is provided.
+ * @note Returns DB_BATCH_NOT_SUPPORTED (-1) for Mock and MongoDB databases (no batching supported).
+ * @see DB_MAX_BATCH_SQLITE, DB_MAX_BATCH_MYSQL, DB_MAX_BATCH_POSTGRESQL.
+ */
+int DataBaseHelper::getMaxBatchSize(const DataBaseType& type)
+{
+    switch(type)
+    {
+        case DataBaseType::Mock:
+            return DB_BATCH_NOT_SUPPORTED;
+            break;
+        case DataBaseType::SQLite:
+            return DB_MAX_BATCH_SQLITE;
+            break;
+        case DataBaseType::MySQL:
+            return DB_MAX_BATCH_MYSQL;
+            break;
+        case DataBaseType::PostgreSQL:
+            return DB_MAX_BATCH_POSTGRESQL;
+            break;
+        case DataBaseType::MongoDB:
+            return DB_BATCH_NOT_SUPPORTED;
+            break;
+        default:
+            throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
+            break;
+    }
+}
+
+/**
  * @brief Escapes backslashes in a string.
  * @param input The input string to escape.
  * @return The string with escaped backslashes.

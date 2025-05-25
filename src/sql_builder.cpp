@@ -646,3 +646,67 @@ std::string SQLBuilder::resolveAutoIncrement(DataBaseType dbType, const std::str
             return DB_AUTOINCREMENT_DEF;
     }
 };
+
+/**
+ * @brief Constructs a parameterized batch INSERT SQL statement optimized for the target database.
+ * Generates a SQL query with proper parameter placeholders for bulk insertion of multiple rows.
+ * The query format is adapted to the specific database dialect requirements.
+ * @param table Name of the target table for insertion (will be properly quoted).
+ * @param fields Vector of column names to insert (will be properly quoted).
+ * @param numRows Number of rows to include in the batch operation.
+ * @param dbType Database type determining SQL dialect and parameter style.
+ * @return std::string The constructed parameterized INSERT query, or empty string for invalid input.
+ * @note Returns empty string if fields vector is empty or numRows is zero
+ * @note Uses database-specific parameter placeholders (?, $1, etc.)
+ * @note Automatically applies proper identifier quoting based on database type
+ */
+std::string SQLBuilder::buildSQLBatchInsert(
+    const std::string& table,
+    const std::vector<std::string> & fields,
+    const size_t numRows,
+    const DataBaseType dbType)
+{
+    const std::string paramPrefix = DataBaseHelper::databaseTypePrefix(dbType);
+
+    if(fields.empty() || numRows == 0)
+    {
+        return "";
+    }
+
+    std::stringstream query;
+
+    // INSERT clause
+    query << "INSERT INTO " << formatIdentifier(dbType, table) << " (";
+
+    // Field names
+    for(size_t i = 0; i < fields.size(); ++i)
+    {
+        if(i > 0) query << ", ";
+        query << formatIdentifier(dbType, fields[i]);
+    }
+    query << ") VALUES ";
+
+    // Value placeholders
+    for(size_t row = 0; row < numRows; ++row)
+    {
+        if(row > 0) query << ", ";
+        query << "(";
+
+        for(size_t col = 0; col < fields.size(); ++col)
+        {
+            if(col > 0) query << ", ";
+
+            switch(dbType)
+            {
+                case DataBaseType::PostgreSQL:
+                    query << paramPrefix << (row* fields.size() + col + 1);
+                    break;
+                default:
+                    query << paramPrefix;
+            }
+        }
+        query << ")";
+    }
+
+    return query.str();
+}

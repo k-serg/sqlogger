@@ -40,8 +40,8 @@
 * @return LogEntryList List of log entries ordered by timestamp (descending).
 */
 LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters,
-        int limit,
-        int offset)
+        const int limit,
+        const int offset)
 {
     std::vector<std::string> fields =
     {
