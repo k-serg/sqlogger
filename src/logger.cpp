@@ -30,15 +30,11 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
 #endif
               )
     : database(std::move(database)),
-      writer( * this->database),
-      reader( * this->database),
-      threadPool(config.numThreads.value_or(LOG_NUM_THREADS)),
-      running(true),
-      minLevel(config.minLogLevel.value_or(LOG_MIN_LOG_LEVEL)),
-      syncMode(config.syncMode.value_or(LOG_SYNC_MODE)),
-      onlyFileNames(config.onlyFileNames.value_or(LOG_ONLY_FILE_NAMES)),
-      useBatch(config.useBatch.value_or(false)),
-      batchSize(config.batchSize.value_or(DB_MAX_BATCH_DEFAULT))
+      config(config),
+      writer( * this->database, config.databaseTable.value_or(LOG_TABLE_NAME)),
+      reader( * this->database, config.databaseTable.value_or(LOG_TABLE_NAME)),
+      threadPool(config.numThreads.value_or(LOG_DEFAULT_NUM_THREADS)),
+      running(true)
 #ifdef USE_SOURCE_INFO
     , sourceInfo(sourceInfo)
     , sourceId(sourceInfo.has_value() && sourceInfo.value().sourceId != SOURCE_NOT_FOUND ? sourceInfo.value().sourceId : SOURCE_NOT_FOUND)
@@ -106,7 +102,7 @@ Logger::Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& con
  */
 Logger::~Logger()
 {
-    if(useBatch)
+    if(config.useBatch.value())
     {
         flushBatch();
     }
@@ -119,7 +115,7 @@ Logger::~Logger()
 void Logger::shutdown()
 {
     running = false;
-    if(!syncMode)
+    if(!config.syncMode.value())
     {
         threadPool.waitForCompletion();
     }
@@ -151,10 +147,10 @@ void Logger::log(const LogLevel level, const std::string& message)
  */
 void Logger::logAdd(const LogLevel level, const std::string& message, const std::string& function, const std::string& file, int line, const std::string& threadId)
 {
-    if(level < minLevel) return;
+    if(level < config.minLogLevel.value()) return;
 
     std::string fileName(file);
-    if(onlyFileNames)
+    if(config.onlyFileNames.value())
     {
         fileName = std::filesystem::path(fileName).filename().string();
     }
@@ -181,19 +177,19 @@ void Logger::logAdd(const LogLevel level, const std::string& message, const std:
 #endif
     };
 
-    if(useBatch)
+    if(config.useBatch.value())
     {
         std::lock_guard<std::recursive_mutex> lock(batchMutex);
         batchBuffer.push_back(task);
 
-        if(batchBuffer.size() >= batchSize)
+        if(batchBuffer.size() >= config.batchSize.value())
         {
             flushBatch();
         }
     }
     else
     {
-        if(syncMode)
+        if(config.syncMode.value())
         {
             processTask(task);
         }
@@ -214,7 +210,7 @@ void Logger::logAdd(const LogLevel level, const std::string& message, const std:
  */
 bool Logger::waitUntilEmpty(const std::chrono::milliseconds& timeout)
 {
-    if(syncMode)
+    if(config.syncMode.value())
     {
         return true;
     }
@@ -329,10 +325,22 @@ void Logger::processBatch(const std::vector<LogTask> & batch)
  */
 void Logger::flush()
 {
-    if(useBatch)
+    if(config.useBatch.value())
     {
         flushBatch();
     }
+}
+
+/**
+ * @brief Gets the current logger configuration.
+ * @return LogConfig::Config A copy of the current configuration object.
+ * @note This method is thread-safe due to internal mutex protection.
+ * @see LogConfig::Config
+ */
+LogConfig::Config Logger::getConfig() const
+{
+    std::lock_guard<std::mutex> lock(configMutex);
+    return config;
 }
 
 /**
@@ -345,7 +353,18 @@ void Logger::flush()
  */
 bool Logger::isBatchEnabled() const
 {
-    return useBatch;
+    return config.useBatch.value();
+}
+
+/**
+ * @brief Gets the current batch size used for buffered logging operations.
+ * @return int The maximum number of log entries that will be buffered
+ * before being written to the database. Returns 0 if batching is disabled.
+ * @see setBatchSize()
+ */
+int Logger::getBatchSize() const
+{
+    return isBatchEnabled() ? config.batchSize.value() : 0;
 }
 
 /**
@@ -377,13 +396,13 @@ void Logger::setBatchSize(const int size)
     std::lock_guard<std::recursive_mutex> lock(batchMutex);
 
     // Flush if: 1) Disabling batching, or 2) Shrinking below current buffer size
-    if((size == 0 && useBatch) || (useBatch && batchBuffer.size() > size))
+    if((size == 0 && config.useBatch.value()) || (config.useBatch.value() && batchBuffer.size() > size))
     {
         flushBatch();
     }
 
-    batchSize = size;
-    useBatch = (size > 0);
+    config.batchSize.value() = size;
+    config.useBatch.value() = (size > 0);
 }
 
 /**
@@ -407,7 +426,7 @@ void Logger::flushBatch()
         currentBatch.swap(batchBuffer);
     }
 
-    if(syncMode)
+    if(config.syncMode.value())
     {
         processBatch(currentBatch);
     }
@@ -431,7 +450,7 @@ void Logger::flushBatch()
 LogEntry Logger::convertTaskToEntry(const LogTask& task) const
 {
     std::string fileName(task.file);
-    if(onlyFileNames)
+    if(config.onlyFileNames.value())
     {
         fileName = std::filesystem::path(fileName).filename().string();
     }
@@ -773,7 +792,7 @@ LogEntryList Logger::getLogsByFunction(const std::string& function,
  */
 void Logger::setLogLevel(LogLevel minLevel)
 {
-    this->minLevel = minLevel;
+    config.minLogLevel.value() = minLevel;
 }
 
 /**
@@ -783,7 +802,19 @@ void Logger::setLogLevel(LogLevel minLevel)
  */
 LogLevel Logger::getMinLogLevel() const
 {
-    return minLevel;
+    return config.minLogLevel.value();
+}
+
+/**
+ * @brief Gets the number of worker threads used for asynchronous logging.
+ * @return size_t Number of active worker threads processing log entries.
+ * Returns 0 if in synchronous mode (isSyncMode() == true).
+ * @see isSyncMode()
+ * @see ThreadPool
+ */
+size_t Logger::getNumThreads() const
+{
+    return isSyncMode() ? 0 : config.numThreads.value();
 }
 
 /**
@@ -806,7 +837,31 @@ DataBaseType Logger::getDataBaseType()
  */
 bool Logger::isSyncMode() const
 {
-    return syncMode;
+    return config.syncMode.value();
+}
+
+/**
+ * @brief Checks whether logger stores only filenames instead of full paths.
+ * When enabled, only the filename portion of source file paths is stored,
+ * excluding directory information.
+ * @return bool True if only filenames are stored, false if full paths are kept
+ * @see LogConfig::Config::onlyFileNames
+ */
+bool Logger::isOnlyFileNames() const
+{
+    return config.onlyFileNames.value();
+}
+
+/**
+ * @brief Gets the name identifier of this logger instance.
+ * The name helps distinguish between different logger instances in systems
+ * with multiple loggers.
+ * @return std::string Current logger name.
+ * @see LogConfig::Config::name
+ */
+std::string Logger::getName() const
+{
+    return config.name.value();
 }
 
 #ifdef USE_SOURCE_INFO

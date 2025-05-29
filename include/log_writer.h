@@ -36,7 +36,7 @@ class LogWriter
          * @brief Constructs a LogWriter object.
          * @param database The database interface to use for writing logs.
          */
-        LogWriter(IDatabase& database) : database(database) {}
+        LogWriter(IDatabase& database, const std::string& logsTableName) : database(database), logsTableName(logsTableName) {};
 
         /**
          * @brief Writes a log entry to the database.
@@ -97,6 +97,7 @@ class LogWriter
 
     private:
         IDatabase& database; /**< The database interface used for writing logs. */
+        std::string logsTableName;
 };
 
 #endif // LOG_WRITER_H

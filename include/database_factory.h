@@ -38,6 +38,8 @@
     #include "mongodb_database.h"
 #endif
 
+class LogManager; // Forward declaration
+
 /**
 * @class DatabaseFactory
 * @brief Factory class for creating database instances of various types.
@@ -48,6 +50,12 @@
 class DatabaseFactory
 {
     public:
+
+        DatabaseFactory() = delete;
+        DatabaseFactory(const DatabaseFactory&) = delete;
+        void operator=(const DatabaseFactory&) = delete;
+
+    private:
         /**
         * @brief Creates a database instance of the specified type.
         * @param type The type of database to create (see DataBaseType enum).
@@ -65,6 +73,8 @@ class DatabaseFactory
         * @see LogConfig::configToConnectionString() to converts a LogConfig::Config object into a database-specific connection string.
         */
         static std::unique_ptr<IDatabase> create(const DataBaseType& type, const std::string& connectionString);
+
+        friend class LogManager;
 };
 
 #endif // !DATABASE_FACTORY_H

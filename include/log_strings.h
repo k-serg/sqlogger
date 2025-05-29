@@ -43,6 +43,10 @@
 #define ERR_MSG_FAILED_BATCH_TASK "Batch task failed: "
 #define ERR_MSG_FAILED_BATCH_QUERY "Batch query failed: "
 
+#define ERR_MSG_LOGGER_EXISTS "Logger exists: "
+#define ERR_MSG_DB_TYPE_NOT_SPECIFIED "Database type not specified"
+#define ERR_MSG_LOGGER_NAME_NOT_FOUND "Logger name not found: "
+#define ERR_MSG_AVAILABLE_LOGGERS "Available loggers: "
 
 #ifdef USE_AES
     #define ERR_MSG_CRYPTO_ENC_INIT_FAILED "Encryption init failed"

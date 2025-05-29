@@ -96,6 +96,10 @@ namespace LogConfig
         if(iniData.count(LOG_INI_SECTION_LOGGER))
         {
             const auto& loggerSection = iniData[LOG_INI_SECTION_LOGGER];
+            if(loggerSection.count(LOG_INI_KEY_NAME))
+            {
+                config.name = loggerSection.at(LOG_INI_KEY_NAME);
+            }
             if(loggerSection.count(LOG_INI_KEY_SYNC_MODE))
             {
                 config.syncMode = (loggerSection.at(LOG_INI_KEY_SYNC_MODE) == "true");
@@ -187,6 +191,10 @@ namespace LogConfig
     {
         INI::INIData iniData;
 
+        if(config.name.has_value())
+        {
+            iniData[LOG_INI_SECTION_LOGGER][LOG_INI_KEY_NAME] = config.name.value();
+        }
         if(config.syncMode.has_value())
         {
             iniData[LOG_INI_SECTION_LOGGER][LOG_INI_KEY_SYNC_MODE] = config.syncMode.value() ? "true" : "false";

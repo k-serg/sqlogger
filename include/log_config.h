@@ -28,12 +28,14 @@
 #include "log_crypto.h"
 
 // Defaults
-#define LOG_NUM_THREADS 4 ///< Default number of threads for asynchronous logging.
-#define LOG_SYNC_MODE 1 ///< Default synchronization mode (true for synchronous logging).
-#define LOG_ONLY_FILE_NAMES 0 ///< Default whether to log only filenames (without full paths).
-constexpr LogLevel LOG_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log level for messages to be logged.
+#define LOG_DEFAULT_LOGGER_NAME "Default" ///< Default logger name.
+#define LOG_DEFAULT_NUM_THREADS 4 ///< Default number of threads for asynchronous logging.
+#define LOG_DEFAULT_SYNC_MODE 1 ///< Default synchronization mode (true for synchronous logging).
+#define LOG_DEFAULT_ONLY_FILE_NAMES 0 ///< Default whether to log only filenames (without full paths).
+constexpr LogLevel LOG_DEFAULT_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log level for messages to be logged.
 
 #define LOG_INI_SECTION_LOGGER "Logger"
+#define LOG_INI_KEY_NAME "Name"
 #define LOG_INI_KEY_SYNC_MODE "SyncMode"
 #define LOG_INI_KEY_NUM_THREADS "NumThreads"
 #define LOG_INI_KEY_ONLY_FILE_NAMES "OnlyFileNames"
@@ -62,7 +64,7 @@ constexpr LogLevel LOG_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default minimum log
 #define CON_STR_USER LOG_INI_KEY_DATABASE_USER
 #define CON_STR_PASS LOG_INI_KEY_DATABASE_PASS
 
-constexpr char* LOG_INI_FILENAME = SQLOGGER_PROJECT_NAME ".ini";
+constexpr char* LOG_DEFAULT_INI_FILENAME = SQLOGGER_PROJECT_NAME ".ini";
 
 /**
  * @namespace StringHelper
@@ -99,10 +101,11 @@ namespace LogConfig
      */
     struct Config
     {
-        std::optional<bool> syncMode = LOG_SYNC_MODE; ///< Synchronization mode (true for synchronous logging).
-        std::optional<size_t> numThreads = LOG_NUM_THREADS; ///< Number of threads for asynchronous logging.
-        std::optional<bool> onlyFileNames = LOG_ONLY_FILE_NAMES; ///< Whether to log only filenames (without full paths).
-        std::optional<LogLevel> minLogLevel = LOG_MIN_LOG_LEVEL; ///< Minimum log level for messages to be logged.
+        std::optional<std::string> name; ///< Logger name.
+        std::optional<bool> syncMode; ///< Synchronization mode (true for synchronous logging).
+        std::optional<size_t> numThreads; ///< Number of threads for asynchronous logging.
+        std::optional<bool> onlyFileNames; ///< Whether to log only filenames (without full paths).
+        std::optional<LogLevel> minLogLevel; ///< Minimum log level for messages to be logged.
         std::optional<std::string> databaseName; ///< Name of the database to use for logging.
         std::optional<std::string> databaseTable; ///< Name of the table to use for logging.
         std::optional<std::string> databaseHost; ///< Host address of the database.
@@ -147,7 +150,7 @@ namespace LogConfig
          * @return A Config object containing the loaded settings.
          * @throws std::runtime_error If the file cannot be parsed.
          */
-        static Config loadFromINI(const std::string& filename = LOG_INI_FILENAME, const std::string& passKey = "");
+        static Config loadFromINI(const std::string& filename = LOG_DEFAULT_INI_FILENAME, const std::string& passKey = "");
 
         /**
          * @brief Saves configuration to an INI file.
@@ -155,7 +158,7 @@ namespace LogConfig
          * @param filename The path to the INI file.
          * @throws std::runtime_error If the file cannot be written.
          */
-        static void saveToINI(const Config& config, const std::string& filename = LOG_INI_FILENAME);
+        static void saveToINI(const Config& config, const std::string& filename = LOG_DEFAULT_INI_FILENAME);
     };
 
     /**

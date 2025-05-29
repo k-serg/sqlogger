@@ -64,13 +64,42 @@ using namespace LogHelper;
 #define LOG_ERROR(logger)   LogMessage(logger, LogLevel::Error, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
 #define LOG_FATAL(logger)   LogMessage(logger, LogLevel::Fatal, __func__, __FILE__, __LINE__, threadIdToString(std::this_thread::get_id()))
 
+class LogManager; // Forward declaration
+
 /**
  * @class Logger
  * @brief Main logger class for handling log entries.
  */
 class LOGGER_API Logger
 {
+    private:
+
+        /**
+        * @brief Constructs a Logger object.
+        * @param database The database interface to use for logging.
+        * @param config LogConfig::Config struct that will be applied.
+        */
+        Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config
+#ifdef USE_SOURCE_INFO
+               , std::optional<SourceInfo> sourceInfo = std::nullopt
+#endif
+              );
+
+        friend class LogManager;
+
     public:
+
+        Logger(const Logger&) = delete;
+        Logger& operator=(const Logger&) = delete;
+
+        Logger(Logger&&) noexcept = default;
+        Logger& operator=(Logger&&) noexcept = default;
+
+        /**
+         * @brief Destructor for Logger. Stops all threads and releases resources.
+         */
+        ~Logger();
+
         /**
          * @enum Sort
          * @brief Enumeration representing the sorting order for log entries.
@@ -146,27 +175,6 @@ class LOGGER_API Logger
         * @see getStats()
         */
         std::string getFormattedStats() const;
-
-        /**
-         * @brief Constructs a Logger object.
-         * @param database The database interface to use for logging.
-         * @param config LogConfig::Config struct that will be applied.
-         */
-        Logger(std::unique_ptr<IDatabase> database, const LogConfig::Config& config = {}
-#ifdef USE_SOURCE_INFO
-               , std::optional<SourceInfo> sourceInfo = std::nullopt
-#endif
-              );
-
-        /**
-         * @brief Destructor for Logger. Stops all threads and releases resources.
-         */
-        ~Logger();
-
-        /**
-         * @brief Shuts down the logger and stops all worker threads.
-         */
-        void shutdown();
 
         /**
         * @brief Logs a message with the specified level and details.
@@ -316,6 +324,14 @@ class LOGGER_API Logger
         void setBatchSize(const int size);
 
         /**
+         * @brief Gets the current logger configuration.
+         * @return LogConfig::Config A copy of the current configuration object.
+         * @note This method is thread-safe due to internal mutex protection.
+         * @see LogConfig::Config
+         */
+        LogConfig::Config getConfig() const;
+
+        /**
         * @brief Checks if batch logging mode is currently enabled.
         * @return bool Current batch mode status (matches useBatch config value)
         * @see setBatchSize()
@@ -324,6 +340,14 @@ class LOGGER_API Logger
         * @see setBatchSize
         */
         bool isBatchEnabled() const;
+
+        /**
+         * @brief Gets the current batch size used for buffered logging operations.
+         * @return int The maximum number of log entries that will be buffered
+         * before being written to the database. Returns 0 if batching is disabled.
+         * @see setBatchSize()
+         */
+        int getBatchSize() const;
 
         /**
          * @brief Gets the type of database currently used by the logger.
@@ -340,6 +364,15 @@ class LOGGER_API Logger
         LogLevel getMinLogLevel() const;
 
         /**
+         * @brief Gets the number of worker threads used for asynchronous logging.
+         * @return size_t Number of active worker threads processing log entries.
+         * Returns 0 if in synchronous mode (isSyncMode() == true).
+         * @see isSyncMode()
+         * @see ThreadPool
+         */
+        size_t getNumThreads() const;
+
+        /**
         * @brief Checks whether logging operations execute synchronously in calling thread.
         * When true, log operations block until fully completed. When false,
         * logs are queued and processed asynchronously in background threads.
@@ -347,6 +380,24 @@ class LOGGER_API Logger
         * false if using asynchronous background processing.
         */
         bool isSyncMode() const;
+
+        /**
+         * @brief Checks whether logger stores only filenames instead of full paths.
+         * When enabled, only the filename portion of source file paths is stored,
+         * excluding directory information.
+         * @return bool True if only filenames are stored, false if full paths are kept
+         * @see LogConfig::Config::onlyFileNames
+         */
+        bool isOnlyFileNames() const;
+
+        /**
+         * @brief Gets the name identifier of this logger instance.
+         * The name helps distinguish between different logger instances in systems
+         * with multiple loggers.
+         * @return std::string Current logger name.
+         * @see LogConfig::Config::name
+         */
+        std::string getName() const;
 
 #ifdef USE_SOURCE_INFO
         /**
@@ -497,26 +548,30 @@ class LOGGER_API Logger
          */
         void updateBatchStats(const size_t batchSize, const uint64_t processTimeMs, const bool success = true);
 
-        std::unique_ptr<IDatabase> database; /**< The database interface used for logging. */
-        LogWriter writer; /**< The log writer used for writing log entries. */
-        LogReader reader; /**< The log reader used for reading log entries. */
-        ThreadPool threadPool; /**< The thread pool for processing log tasks. */
+        /**
+        * @brief Shuts down the logger and stops all worker threads.
+        */
+        void shutdown();
+
+        std::mutex logMutex; /**< Mutex for log access synchronization. */
 
         std::mutex dbMutex; /**< Mutex for database access synchronization. */
-        std::mutex logMutex; /**< Mutex for log access synchronization. */
+        std::unique_ptr<IDatabase> database; /**< The database interface used for logging. */
+
+        mutable std::mutex configMutex; /**< Mutex for protecting configuration access. Marked mutable to allow locking in const methods.*/
+        LogConfig::Config config; /**< Current configuration settings for the logger. */
+
+        LogWriter writer; /**< The log writer used for writing log entries. */
+        LogReader reader; /**< The log reader used for reading log entries. */
+
+        ThreadPool threadPool; /**< The thread pool for processing log tasks. */
 
         std::atomic<bool> running; /**< Flag indicating whether the logger is running. */
 
         mutable std::mutex statsMutex; /**< Mutex for statistics synchronization. */
         Stats currentStats; /**< Current logger statistics. */
 
-        LogLevel minLevel; /**< Minimum log level for messages to be logged. */
-        bool syncMode; /**< Whether the logger is in synchronous mode. */
-        bool onlyFileNames; /**< Log only filenames or full path to the file. */
-
         std::recursive_mutex batchMutex; /**< Mutex for batch access synchronization. */
-        bool useBatch; /**< Use batches for log writing. */
-        int batchSize; /**< Batch size (entries). */
         std::vector<LogTask> batchBuffer; /**< Batch buffer (LogTasks). */
 
 #ifdef USE_SOURCE_INFO

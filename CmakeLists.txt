@@ -9,10 +9,10 @@ project(${PROJECT_NAME})
 
 # Set the version numbers for the project
 set(SQLOGGER_VERSION_MAJOR 1)
-set(SQLOGGER_VERSION_MINOR 7)
+set(SQLOGGER_VERSION_MINOR 8)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
-set(SQLOGGER_DESCRIPTION "SQLogger is a lightweight logging library that uses SQLite (optional MySQL and PostgreSQL) as a backend.")
+set(SQLOGGER_DESCRIPTION "SQLogger is a fast, lightweight logging library that uses SQLite (optional MySQL and PostgreSQL) as a backend.")
 
 # Configure the version header file
 configure_file("sqlogger_config.h.in" "sqlogger_config.h" @ONLY)
@@ -167,6 +167,7 @@ set(HEADERS
     "./include/query_builder.h"
     "./include/database_schema.h"
     "./include/sql_builder.h"
+    "./include/log_manager.h"
 )
 
 # Define the list of source files
@@ -188,6 +189,7 @@ set(SOURCES
     "./src/query_builder.cpp"
     "./src/database_schema.cpp"
     "./src/sql_builder.cpp"
+    "./src/log_manager.cpp"
 )
 
 # Add MySQL header and source files if USE_MYSQL is enabled

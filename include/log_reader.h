@@ -36,7 +36,7 @@ class LogReader
          * @brief Constructs a LogReader object.
          * @param database The database interface to use for reading logs.
          */
-        LogReader(IDatabase& database) : database(database) {}
+        LogReader(IDatabase& database, const std::string& logsTableName) : database(database), logsTableName(logsTableName) {};
 
         /**
         * @brief Retrieves log entries from the database matching specified filters.
@@ -94,6 +94,7 @@ class LogReader
 
     private:
         IDatabase& database; /**< The database interface used for reading logs. */
+        std::string logsTableName;
 };
 
 #endif // LOG_READER_H

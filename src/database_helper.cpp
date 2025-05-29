@@ -20,6 +20,99 @@
 #include "database_helper.h"
 
 /**
+ * @brief Checks if a database type is supported in the current build configuration.
+ * Determines whether the database type is available based on compile-time
+ * feature flags (USE_MYSQL, USE_POSTGRESQL, etc.). Mock and SQLite are always
+ * supported.
+ * @param dbType The database type to check
+ * @return bool True if the database type is supported, false otherwise
+ * @see DataBaseType
+ */
+bool DataBaseHelper::isDataBaseSupported(const DataBaseType& dbType)
+{
+    switch(dbType)
+    {
+        case DataBaseType::Mock:
+        case DataBaseType::SQLite:
+            return true;
+            break;
+
+        case DataBaseType::MySQL:
+        {
+#ifdef USE_MYSQL
+            return true;
+#else
+            return false;
+#endif
+        }
+        break;
+
+        case DataBaseType::PostgreSQL:
+        {
+#ifdef USE_POSTGRESQL
+            return true;
+#else
+            return false;
+#endif
+        }
+        break;
+
+        case DataBaseType::MongoDB:
+        {
+#ifdef USE_MONGODB
+            return true;
+#else
+            return false;
+#endif
+        }
+        break;
+
+        default:
+            return false;
+            break;
+    }
+}
+
+/**
+ * @brief Gets the default network port number for a specified database type.
+ * Returns the standard/default port number used by the database server.
+ * For database types that don't use network ports (like SQLite), returns
+ * DB_DEFAULT_PORT_NOT_SUPPORTED.
+ * @param dbType The database type to query
+ * @return int Default port number or DB_DEFAULT_PORT_NOT_SUPPORTED if not applicable
+ * @see DataBaseType
+ */
+int DataBaseHelper::getDataBaseDefaultPort(const DataBaseType& dbType)
+{
+    switch(dbType)
+    {
+        case DataBaseType::Mock:
+            return DB_DEFAULT_PORT_NOT_SUPPORTED;
+            break;
+
+        case DataBaseType::SQLite:
+            return DB_DEFAULT_PORT_NOT_SUPPORTED;
+            break;
+
+        case DataBaseType::MySQL:
+            return DB_DEFAULT_PORT_MYSQL;
+            break;
+
+        case DataBaseType::PostgreSQL:
+            return DB_DEFAULT_PORT_POSTGRESQL;
+            break;
+
+        case DataBaseType::MongoDB:
+            return DB_DEFAULT_PORT_MONGODB;
+            break;
+
+        default:
+            return DB_DEFAULT_PORT_NOT_SUPPORTED;
+            break;
+    }
+}
+
+/**
  * @brief Converts a string representation of a database type to the corresponding enum value.
  * @param stringType The string representation of the database type.
  * @return The corresponding DataBaseType enum value.

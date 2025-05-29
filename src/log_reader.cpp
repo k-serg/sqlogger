@@ -61,7 +61,7 @@ LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters,
     // Build the query using QueryBuilder
     std::string query = QueryBuilder::buildSelect(
                             database.getDatabaseType(),
-                            LOG_TABLE_NAME,
+                            logsTableName,
                             fields,
                             filters,
                             FIELD_LOG_TIMESTAMP,

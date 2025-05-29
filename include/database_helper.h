@@ -31,6 +31,13 @@
 #define DB_TYPE_STR_MONGODB "MongoDB"
 #define DB_TYPE_STR_UNKNOWN "UNKNOWN"
 
+#define DB_DEFAULT_PORT_NOT_SUPPORTED -1
+#define DB_DEFAULT_PORT_MOCK DB_DEFAULT_PORT_NOT_SUPPORTED
+#define DB_DEFAULT_PORT_SQLITE DB_DEFAULT_PORT_NOT_SUPPORTED
+#define DB_DEFAULT_PORT_MYSQL 3306
+#define DB_DEFAULT_PORT_POSTGRESQL 5432
+#define DB_DEFAULT_PORT_MONGODB 27017
+
 #define DB_PARAM_PREFIX_DEFAULT "?"
 #define DB_PARAM_PREFIX_MOCK DB_PARAM_PREFIX_DEFAULT
 #define DB_PARAM_PREFIX_SQLITE DB_PARAM_PREFIX_DEFAULT
@@ -75,6 +82,28 @@ enum class ValueType
  */
 namespace DataBaseHelper
 {
+    /**
+    * @brief Checks if a database type is supported in the current build configuration.
+    * Determines whether the database type is available based on compile-time
+    * feature flags (USE_MYSQL, USE_POSTGRESQL, etc.). Mock and SQLite are always
+    * supported.
+    * @param dbType The database type to check
+    * @return bool True if the database type is supported, false otherwise
+    * @see DataBaseType
+    */
+    bool isDataBaseSupported(const DataBaseType& dbType);
+
+    /**
+    * @brief Gets the default network port number for a specified database type.
+    * Returns the standard/default port number used by the database server.
+    * For database types that don't use network ports (like SQLite), returns
+    * DB_DEFAULT_PORT_NOT_SUPPORTED.
+    * @param dbType The database type to query
+    * @return int Default port number or DB_DEFAULT_PORT_NOT_SUPPORTED if not applicable
+    * @see DataBaseType
+    */
+    int getDataBaseDefaultPort(const DataBaseType& dbType);
+
     /**
      * @brief Converts a string representation of a database type to the corresponding enum value.
      * @param stringType The string representation of the database type.

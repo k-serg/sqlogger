@@ -21,9 +21,7 @@
 #include <iostream>
 #include <thread>
 #include <filesystem>
-#include "database_factory.h"
-#include "logger.h"
-#include "log_crypto.h"
+#include "log_manager.h"
 
 #ifdef USE_AES
     #pragma message("AES support enabled.")
@@ -49,85 +47,45 @@
     #pragma message("MongoDB support enabled.")
 #endif
 
-// Define (uncomment) only one!
-//#define TEST_DB_MOCK
-#define TEST_DB_SQLITE
-//#define TEST_DB_MYSQL
-//#define TEST_DB_POSTGRESQL
-//#define TEST_DB_MONGODB
+// Test Config params.
+constexpr auto TEST_LOGGER_NAME = "test_logger";
+constexpr auto TEST_NUM_THREADS = 4;
+constexpr auto TEST_USE_SYNC_MODE = true;
+constexpr auto TEST_ONLY_FILE_NAME = true;
+constexpr auto TEST_USE_BATCH = true;
+constexpr auto TEST_BATCH_SIZE = 1000;
+constexpr LogLevel TEST_LOG_LEVEL = LogLevel::Trace;
 
-// Count defined TEST_DB_
-#define COUNT_DEFINED_VALUES       \
-    (defined(TEST_DB_MOCK) +       \
-     defined(TEST_DB_SQLITE) +     \
-     defined(TEST_DB_MYSQL) +      \
-     defined(TEST_DB_POSTGRESQL) + \
-     defined(TEST_DB_MONGODB))
+// Test params.
+constexpr auto TEST_EXPORT_FILE = "test_logs_export";
+constexpr auto TEST_PERFORMANCE_TEST_ENTRIES = 100;
+constexpr auto TEST_PRINT_LOGS = false;
+constexpr auto TEST_WAIT_UNTIL_EMPTY_MSEC = 1000;
+constexpr auto TEST_STRESS_NUM_CONNECTIONS = 10;
+constexpr auto TEST_STRESS_LOGS_PER_CONNECTION = 1000;
 
-// FIXME: Broken, idk why.
-//#if COUNT_DEFINED_VALUES == 0
-//#error "At least one TEST_DB_ must be defined."
-//#endif
+// Test database params.
+constexpr auto TEST_DATABASE_NAME = "test_logs";
+constexpr auto TEST_DATABASE_TABLE = "logs";
+constexpr auto TEST_DATABASE_HOST = "localhost";
+constexpr auto TEST_DATABASE_USER = "test";
+constexpr auto TEST_DATABASE_PASS = "test";
+constexpr auto TEST_ENC_DEC_PASS_KEY = "iknowyoursecrets";
+constexpr auto TEST_ENC_DEC_STRING = "test_string";
+constexpr auto TEST_DATABASE_FILE = "test_logs.db";
 
-#if COUNT_DEFINED_VALUES > 1
-    #error "Only one TEST_DB_ should be defined at a time."
-#endif
-
-#if defined(TEST_DB_MOCK)
-    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_MOCK
-#elif defined(TEST_DB_SQLITE)
-    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_SQLITE
-#elif defined(TEST_DB_MYSQL)
-    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_MYSQL
-#elif defined(TEST_DB_POSTGRESQL)
-    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_POSTGRESQL
-#elif defined(TEST_DB_MONGODB)
-    #define TEST_DATABASE_TYPE_STR DB_TYPE_STR_MONGODB
-#endif
-
-#define TEST_EXPORT_FILE "test_logs_export"
-#define TEST_NUM_THREADS 4
-#define TEST_USE_SYNC_MODE 0
-#define TEST_PERFORMANCE_TEST_ENTRIES 100
-#define TEST_PRINT_LOGS 0
-#define TEST_WAIT_UNTIL_EMPTY_MSEC 1000
-#define TEST_ONLY_FILE_NAME 0
-#define TEST_USE_BATCH 1
-#define TEST_BATCH_SIZE 1000
-
-#define TEST_DATABASE_NAME "test_logs"
-#define TEST_DATABASE_TABLE "logs"
-#define TEST_DATABASE_HOST "localhost"
-
-#if defined(TEST_DB_MYSQL)
-    #define TEST_DATABASE_PORT "3306"
-#elif defined(TEST_DB_POSTGRESQL)
-    #define TEST_DATABASE_PORT "5432"
-#elif defined(TEST_DB_MONGODB)
-    #define TEST_DATABASE_PORT "27017"
-#else
-    #define TEST_DATABASE_PORT ""
-#endif
-
-#define TEST_DATABASE_USER "test"
-#define TEST_DATABASE_PASS "test"
-#define TEST_DATABASE_FILE TEST_DATABASE_NAME ".db"
-#define TEST_ENC_DEC_PASS_KEY "iknowyoursecrets"
-#define TEST_ENC_DEC_STRING "test_string"
+static LogConfig::Config testConfig;
+static Logger* testLogger = nullptr;
 
 #ifdef USE_SOURCE_INFO
-#define TEST_SOURCE_NAME "test_source"
+// Test SourceInfo params.
+constexpr auto TEST_SOURCE_NAME = "test_source";
+constexpr auto TEST_SOURCE_UUID = "4472ab03-4184-44ab-921c-751a702c42ca";
 
-auto TEST_SOURCE_UUID = [ & ]()
-{
-    return std::string("4472ab03-4184-44ab-921c-751a702c42ca");
-    //return LogHelper::generateUUID();
-}
-();
-
-auto TEST_SOURCE_INFO = [ & ]()
+SourceInfo TEST_SOURCE_INFO = [ & ]()
 {
     SourceInfo sourceInfo;
+    sourceInfo.sourceId = 0; // id will be obtained later from the database.
     sourceInfo.name = TEST_SOURCE_NAME;
     sourceInfo.uuid = TEST_SOURCE_UUID;
     return sourceInfo;
@@ -135,74 +93,89 @@ auto TEST_SOURCE_INFO = [ & ]()
 ();
 #endif
 
-auto TEST_DATABASE_TYPE = [ & ]()
+DataBaseType TEST_DATABASE_TYPE = [ & ]()
 {
-    return DataBaseHelper::stringToDatabaseType(TEST_DATABASE_TYPE_STR);
+    return DataBaseHelper::stringToDatabaseType(DB_TYPE_STR_SQLITE);
 }
 ();
 
-using namespace LogHelper;
-using namespace LogConfig;
-
-// Minimum log level
-constexpr LogLevel TEST_LOG_LEVEL = LogLevel::Trace;
-
-auto TEST_CONFIG = [ & ]()
+int TEST_DATABASE_PORT = [ & ]()
 {
-    Config cfg;
-    cfg.syncMode = TEST_USE_SYNC_MODE;
-    cfg.numThreads = TEST_NUM_THREADS;
-    cfg.onlyFileNames = TEST_ONLY_FILE_NAME;
-    cfg.minLogLevel = TEST_LOG_LEVEL;
-#if defined(TEST_DB_SQLITE)
-    cfg.databaseName = TEST_DATABASE_FILE;
-#else
-    cfg.databaseName = TEST_DATABASE_NAME;
-#endif
-    cfg.databaseTable = TEST_DATABASE_TABLE;
-#if !defined(TEST_DB_SQLITE) && !defined(TEST_DB_MOCK)
-    cfg.databaseHost = TEST_DATABASE_HOST;
-    cfg.databasePort = std::stoi(TEST_DATABASE_PORT);
-    cfg.databaseUser = TEST_DATABASE_USER;
-    cfg.databasePass = TEST_DATABASE_PASS;
-    cfg.passKey = TEST_ENC_DEC_PASS_KEY;
-#endif
-    cfg.databaseType = TEST_DATABASE_TYPE;
-    cfg.useBatch = TEST_USE_BATCH;
-    cfg.batchSize = TEST_BATCH_SIZE;
+    return DataBaseHelper::getDataBaseDefaultPort(TEST_DATABASE_TYPE);
+}
+();
+
+static LogConfig::Config getDefaultConfig()
+{
+    LogConfig::Config config;
+    config.name = TEST_LOGGER_NAME;
+    config.syncMode = TEST_USE_SYNC_MODE;
+    config.numThreads = TEST_NUM_THREADS;
+    config.onlyFileNames = TEST_ONLY_FILE_NAME;
+    config.minLogLevel = TEST_LOG_LEVEL;
+    config.databaseName = TEST_DATABASE_FILE;
+    config.databaseTable = TEST_DATABASE_TABLE;
+    //config.databaseHost = TEST_DATABASE_HOST;
+    //config.databasePort = TEST_DATABASE_PORT;
+    //config.databaseUser = TEST_DATABASE_USER;
+    //config.databasePass = TEST_DATABASE_PASS;
+    //config.passKey = TEST_ENC_DEC_PASS_KEY;
+    config.databaseType = TEST_DATABASE_TYPE;
+    config.useBatch = TEST_USE_BATCH;
+    config.batchSize = TEST_BATCH_SIZE;
 #ifdef USE_SOURCE_INFO
-    cfg.sourceUuid = TEST_SOURCE_UUID;
-    cfg.sourceName = TEST_SOURCE_NAME;
+    config.sourceUuid = TEST_SOURCE_UUID;
+    config.sourceName = TEST_SOURCE_NAME;
 #endif
-    return cfg;
-}
-();
 
-auto TEST_CONN_STRING = [ & ]()
+    return config;
+}
+
+namespace
 {
-    return LogConfig::configToConnectionString(TEST_CONFIG);
-}
-();
+    const LogConfig::Config& getTestConfig(const std::string& configFile = LOG_DEFAULT_INI_FILENAME)
+    {
+        if(!testConfig.databaseType.has_value())
+        {
+            try
+            {
+                if(configFile.empty() || !std::filesystem::exists(configFile))
+                {
+                    testConfig = getDefaultConfig();
+                }
+                else
+                {
+                    testConfig = LogConfig::Config::loadFromINI(configFile, TEST_ENC_DEC_PASS_KEY);
+                }
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << e.what() << std::endl;
+                testConfig = getDefaultConfig();
+            }
+        }
+        return testConfig;
+    }
 
 
-#if defined(TEST_DB_MOCK)
-    auto database = DatabaseFactory::create(DataBaseType::Mock, TEST_CONN_STRING);
-#elif defined(TEST_DB_SQLITE)
-    auto database = DatabaseFactory::create(DataBaseType::SQLite, TEST_CONN_STRING);
-#elif defined(TEST_DB_MYSQL)
-    auto database = DatabaseFactory::create(DataBaseType::MySQL, TEST_CONN_STRING);
-#elif defined(TEST_DB_POSTGRESQL)
-    auto database = DatabaseFactory::create(DataBaseType::PostgreSQL, TEST_CONN_STRING);
-#elif defined(TEST_DB_MONGODB)
-    auto database = DatabaseFactory::create(DataBaseType::MongoDB, TEST_CONN_STRING);
-#endif
-
-Logger logger(std::move(database), TEST_CONFIG
+    Logger& getTestLogger(const LogConfig::Config& config)
+    {
+        if(!testLogger)
+        {
+            testLogger = & LogManager::getInstance().createLogger(
+                             config.name.value(),
+                             config
 #ifdef USE_SOURCE_INFO
-    , TEST_SOURCE_INFO
+                             , SourceInfo { 0, // id will be obtained later from the database.
+                                            config.sourceUuid.value(),
+                                            config.sourceName.value()
+                                          }
 #endif
-             );
-
+                         );
+        }
+        return *testLogger;
+    }
+}
 
 void clearLogs(
 #ifdef USE_SOURCE_INFO
@@ -210,6 +183,7 @@ void clearLogs(
 #endif
 )
 {
+    Logger& logger = getTestLogger(getTestConfig());
     logger.clearLogs(
 #ifdef USE_SOURCE_INFO
               clearSources
@@ -241,9 +215,14 @@ LogConfig::Config loadConfig(const std::string& filename, const std::string& pas
  * @param filename File name to save.
  * @param config LogConfig::Config structure.
 */
-void saveConfig(const Config& config, const std::string& filename)
+void saveConfig(const LogConfig::Config& config, const std::string& filename)
 {
     LogConfig::Config::saveToINI(config, filename);
+}
+
+void showMessage(const std::string& msg)
+{
+    std::cout << msg << std::endl;
 }
 
 /**
@@ -252,14 +231,17 @@ void saveConfig(const Config& config, const std::string& filename)
 */
 void printLogs(const LogEntryList& logs)
 {
-#if TEST_PRINT_LOGS != 1
-    return;
-#endif
-    std::cout << "Logs size: " << logs.size() << std::endl;
+    if(!TEST_PRINT_LOGS) return;
+
+    std::stringstream ss;
+
+    ss << "Logs size: " << logs.size() << std::endl;
     for(const auto & log : logs)
     {
-        std::cout << log.print() << std::endl;
+        ss << log.print() << std::endl;
     }
+
+    showMessage(ss.str());
 }
 
 /**
@@ -267,6 +249,11 @@ void printLogs(const LogEntryList& logs)
  */
 void testBasicFunctionality()
 {
+    std::string testName = "Basic functionality test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -306,7 +293,7 @@ void testBasicFunctionality()
     }
     assert(infoFound && warningFound && errorFound);
 
-    std::cout << "testBasicFunctionality passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -314,6 +301,11 @@ void testBasicFunctionality()
  */
 void testFilterByLevel()
 {
+    std::string testName = "Filter by level test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -340,7 +332,7 @@ void testFilterByLevel()
     assert(levelLogs.size() == 1); // One entry for the level
     assert(levelLogs[0].message == msg);
 
-    std::cout << "testFilterByLevel passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -348,6 +340,11 @@ void testFilterByLevel()
  */
 void testFilterByThreadId()
 {
+    std::string testName = "Filter By ThreadId test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -376,7 +373,7 @@ void testFilterByThreadId()
     assert(threadLogs.size() == 1); // At least one entry for the current thread
     assert(threadLogs[0].message == msg);
 
-    std::cout << "testFilterByThreadId passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -384,6 +381,11 @@ void testFilterByThreadId()
  */
 void testFilterByFile()
 {
+    std::string testName = "Filter By File test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -398,12 +400,13 @@ void testFilterByFile()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
+    std::string file;
+
     // Retrieve logs for the current file
-#if TEST_ONLY_FILE_NAME == 1
-    const std::string file = std::filesystem::path(__FILE__).filename().string();
-#else
-    const std::string file = __FILE__;
-#endif
+    if(testConfig.onlyFileNames.value() == true)
+        file = std::filesystem::path(__FILE__).filename().string();
+    else
+        file = __FILE__;
 
     // flush batched logs for testing purposes
     logger.flush();
@@ -415,7 +418,7 @@ void testFilterByFile()
     assert(fileLogs.size() >= 1); // At least one entry for the file
     assert(fileLogs[0].message == msg);
 
-    std::cout << "testFilterByFile passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -423,6 +426,11 @@ void testFilterByFile()
  */
 void testFilterByFunction()
 {
+    std::string testName = "Filter By Function test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -448,7 +456,7 @@ void testFilterByFunction()
     assert(functionLogs.size() == 1); // One entry for the function
     assert(functionLogs[0].message == msg);
 
-    std::cout << "testFilterByFunction passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -456,6 +464,11 @@ void testFilterByFunction()
  */
 void testFilterByTimestampRange()
 {
+    std::string testName = "Filter By Timestamp Range test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -483,7 +496,7 @@ void testFilterByTimestampRange()
     assert(timeLogs.size() >= 1); // At least one entry
     assert(timeLogs[0].message == msg);
 
-    std::cout << "testFilterByTimestampRange passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -491,6 +504,11 @@ void testFilterByTimestampRange()
  */
 void testClearLogs()
 {
+    std::string testName = "Clear Logs test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -518,7 +536,7 @@ void testClearLogs()
     LogEntryList allLogs = logger.getAllLogs();
     assert(allLogs.empty());
 
-    std::cout << "testClearLogs passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -526,6 +544,11 @@ void testClearLogs()
  */
 void testMultiThread()
 {
+    std::string testName = "Multi Thread test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     logger.clearLogs();
 
     const int numThreads = 10;
@@ -592,7 +615,7 @@ void testMultiThread()
 
     assert(allLogs.size() == numThreads* logsPerThread);
 
-    std::cout << "testMultiThreadedLogging passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -600,6 +623,11 @@ void testMultiThread()
 */
 void testMultiFilters()
 {
+    std::string testName = "Multi Filters test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -632,11 +660,15 @@ void testMultiFilters()
     Filter fileFilter;
     fileFilter.type = Filter::Type::File;
     fileFilter.field = fileFilter.typeToField();
-#if TEST_ONLY_FILE_NAME == 1
-    fileFilter.value = std::filesystem::path(__FILE__).filename().string();
-#else
-    fileFilter.value = __FILE__;
-#endif
+
+    std::string file;
+
+    // Retrieve logs for the current file
+    if(testConfig.onlyFileNames.value() == true)
+        fileFilter.value = std::filesystem::path(__FILE__).filename().string();
+    else
+        fileFilter.value = __FILE__;
+
     fileFilter.op = "=";
     filters.push_back(fileFilter);
 
@@ -669,7 +701,7 @@ void testMultiFilters()
     assert(filteredLogs.size() == 1);
     assert(filteredLogs[0].message == errorMsg);
 
-    std::cout << "testMultiFilters passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -677,6 +709,11 @@ void testMultiFilters()
  */
 void testFileExport()
 {
+    std::string testName = "File Export test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
@@ -730,100 +767,7 @@ void testFileExport()
     // Unknown Format
     //Logger::exportTo(path.string() + ".bad", static_cast<LogExport::Format>(10), allLogs, delimiter, false);
 
-    std::cout << "testFileExport passed!" << std::endl;
-}
-
-/**
- * @brief Test error handling in the logger.
- */
-void testErrorHandling()
-{
-    // Clear the database before starting the test
-    logger.clearLogs();
-
-    //std::unique_ptr<IDatabase> database;
-
-#if defined(TEST_DB_MOCK)
-    // Use MockDatabase
-    auto mockDb = DatabaseFactory::create(DataBaseType::Mock, TEST_CONN_STRING);
-    // Override executeWithParams to simulate an error
-    //mockDb->executeWithParamsOverride = [](const std::string& query, const std::vector<std::string> & params) -> bool
-    //{
-    //    return false; // Simulate an error
-    //};
-    database = std::move(mockDb);
-#elif defined(TEST_DB_SQLITE)
-    // Use a real SQLite database
-    const std::string dbPath = "test_error_handling.db";
-
-    // Remove the old database if it exists
-    if(std::filesystem::exists(dbPath))
-    {
-        std::filesystem::remove(dbPath);
-    }
-
-    auto database = std::make_unique<SQLiteDatabase>(dbPath);
-
-    // Simulate an error in the real database
-    // For example, try to insert into a non-existent table
-    bool success = database->execute("INSERT INTO non_existent_table (message) VALUES (?)", { "Test message" });
-    if(!success)
-    {
-        // Ensure the error is logged
-        std::cerr << "Simulated error in real database: Query failed!" << std::endl;
-    }
-#elif defined(TEST_DB_MYSQL)
-    //TODO:
-#endif
-
-    // Create a logger with the selected database
-    Logger testLogger(std::move(database));
-
-    // Log a message that will cause an error
-    const std::string message = "Error handling test message";
-    LOG_INFO(testLogger) << message;
-
-    // Wait until all logs are written
-    if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
-    {
-        std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
-    }
-
-    // Check if the error was logged
-    std::ifstream errorLog(std::filesystem::absolute(ERR_LOG_FILE));
-    if(!errorLog.is_open())
-    {
-        std::cerr << "Failed to open error log file:" << std::filesystem::absolute(ERR_LOG_FILE) << std::endl;
-        std::cerr << "Error code: " << strerror(errno) << std::endl; // Output system error
-        assert(false); // File did not open, test failed
-    }
-
-    std::string line;
-    bool errorLogged = false;
-    while(std::getline(errorLog, line))
-    {
-        if(line.find(ERR_MSG_FAILED_QUERY) != std::string::npos)
-        {
-            errorLogged = true;
-            break;
-        }
-    }
-
-    assert(errorLogged);
-    std::cout << "testErrorHandling passed!" << std::endl;
-
-    // Cleanup (if a real database was used)
-#if defined(TEST_DB_SQLITE)
-    {
-        const std::string dbPath = "test_error_handling.db";
-        if(std::filesystem::exists(dbPath))
-        {
-            std::filesystem::remove(dbPath);
-        }
-    }
-#elif defined(TEST_DB_MYSQL)
-    // TODO: DROP DB
-#endif
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -831,13 +775,11 @@ void testErrorHandling()
  */
 void removeTestFiles()
 {
-#if defined(TEST_DB_MYSQL)
-    // TODO: DROP DB
-#endif
-
     const auto dbFilePath = std::filesystem::absolute(TEST_DATABASE_FILE);
 
-    std::cout << "Remove test files..." << std::endl;
+    std::stringstream ss;
+
+    ss << "Removing test files..." << std::endl;
 
     if(std::filesystem::exists(dbFilePath))
     {
@@ -875,7 +817,7 @@ void removeTestFiles()
         }
     }
 
-    const auto configFilePath = std::filesystem::absolute(LOG_INI_FILENAME);
+    const auto configFilePath = std::filesystem::absolute(LOG_DEFAULT_INI_FILENAME);
 
     if(std::filesystem::exists(configFilePath))
     {
@@ -888,6 +830,8 @@ void removeTestFiles()
             std::cout << "Can't remove config file: " << configFilePath << "(" << e.what() << ")" << std::endl;
         }
     }
+
+    showMessage(ss.str());
 }
 
 /**
@@ -895,13 +839,16 @@ void removeTestFiles()
  */
 void testPerformance()
 {
+    std::string testName = "Performance test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
 
     // Reset stats
     logger.resetStats();
-
-    //std::cout << std::endl << logger.getFormattedStats(logger.getStats()) << std::endl;
 
     const int numLogs = TEST_PERFORMANCE_TEST_ENTRIES;
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -929,11 +876,18 @@ void testPerformance()
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
     auto stats = logger.getStats();
-    std::cout << std::endl << "*** Performance Test ***" << std::endl;
-    std::cout << "Logged " << numLogs << " messages in " << duration << " ms" << std::endl;
+
+    std::stringstream ss;
+
+    ss << std::endl << "*** Performance Test ***" << std::endl;
+    ss << "Logged " << numLogs << " messages in " << duration << " ms" << std::endl;
 
     // Get Stats
-    std::cout << std::endl << Logger::getFormattedStats(stats) << std::endl;
+    ss << std::endl << Logger::getFormattedStats(stats) << std::endl;
+
+    showMessage(ss.str());
+
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -941,27 +895,35 @@ void testPerformance()
 */
 void testConfigSaveLoad()
 {
-    saveConfig(TEST_CONFIG, LOG_INI_FILENAME);
-    auto loadedConfig = loadConfig(LOG_INI_FILENAME, TEST_ENC_DEC_PASS_KEY);
-    assert(loadedConfig.syncMode == TEST_CONFIG.syncMode);
-    assert(loadedConfig.numThreads == TEST_CONFIG.numThreads);
-    assert(loadedConfig.onlyFileNames == TEST_CONFIG.onlyFileNames);
-    assert(loadedConfig.minLogLevel == TEST_CONFIG.minLogLevel);
-    assert(loadedConfig.databaseName == TEST_CONFIG.databaseName);
-    assert(loadedConfig.databaseTable == TEST_CONFIG.databaseTable);
-    assert(loadedConfig.databaseHost == TEST_CONFIG.databaseHost);
-    assert(loadedConfig.databasePort == TEST_CONFIG.databasePort);
-    assert(loadedConfig.databaseUser == TEST_CONFIG.databaseUser);
-    assert(loadedConfig.databasePass == TEST_CONFIG.databasePass);
-    assert(loadedConfig.databaseType == TEST_CONFIG.databaseType);
-    assert(loadedConfig.useBatch == TEST_CONFIG.useBatch);
-    assert(loadedConfig.batchSize == TEST_CONFIG.batchSize);
+    std::string testName = "Config Save Load test";
+    showMessage(testName + " started...");
+
+    LogConfig::Config config = getDefaultConfig();
+
+    saveConfig(config, LOG_DEFAULT_INI_FILENAME);
+
+    auto loadedConfig = loadConfig(LOG_DEFAULT_INI_FILENAME, TEST_ENC_DEC_PASS_KEY);
+
+    assert(loadedConfig.name == config.name);
+    assert(loadedConfig.syncMode == config.syncMode);
+    assert(loadedConfig.numThreads == config.numThreads);
+    assert(loadedConfig.onlyFileNames == config.onlyFileNames);
+    assert(loadedConfig.minLogLevel == config.minLogLevel);
+    assert(loadedConfig.databaseName == config.databaseName);
+    assert(loadedConfig.databaseTable == config.databaseTable);
+    assert(loadedConfig.databaseHost == config.databaseHost);
+    assert(loadedConfig.databasePort == config.databasePort);
+    assert(loadedConfig.databaseUser == config.databaseUser);
+    assert(loadedConfig.databasePass == config.databasePass);
+    assert(loadedConfig.databaseType == config.databaseType);
+    assert(loadedConfig.useBatch == config.useBatch);
+    assert(loadedConfig.batchSize == config.batchSize);
 #ifdef USE_SOURCE_INFO
-    assert(loadedConfig.sourceUuid == TEST_CONFIG.sourceUuid);
-    assert(loadedConfig.sourceName == TEST_CONFIG.sourceName);
+    assert(loadedConfig.sourceUuid == config.sourceUuid);
+    assert(loadedConfig.sourceName == config.sourceName);
 #endif
 
-    std::cout << "testConfigSaveLoad passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -969,17 +931,23 @@ void testConfigSaveLoad()
  */
 void testSourceInfo()
 {
+    std::string testName = "Source Info test";
+
 #ifdef USE_SOURCE_INFO
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs(true);
 
     // Add the source to the database and get its sourceId
     // Use TEST_SOURCE_INFO, which is already defined
-    int sourceId = logger.addSource(TEST_SOURCE_INFO.name, TEST_SOURCE_INFO.uuid);
+    int sourceId = logger.addSource(testConfig.sourceName.value(), testConfig.sourceUuid.value());
     assert(sourceId != SOURCE_NOT_FOUND); // Ensure the source was added successfully
 
     // Use TEST_SOURCE_INFO, which is already defined
-    const std::string msg = "This is a message from " + TEST_SOURCE_INFO.name;
+    const std::string msg = "This is a message from " + testConfig.sourceName.value();
 
     // Log a message with this source
     LOG_INFO(logger) << msg;
@@ -1002,16 +970,16 @@ void testSourceInfo()
     assert(sourceIdLogs[0].message == msg); // Ensure the message matches
 
     // Retrieve logs for the specific sourceUuid
-    LogEntryList sourceUuidLogs = logger.getLogsBySourceUuid(TEST_SOURCE_INFO.uuid);
+    LogEntryList sourceUuidLogs = logger.getLogsBySourceUuid(testConfig.sourceUuid.value());
 
     printLogs(sourceUuidLogs);
 
     assert(sourceUuidLogs.size() == 1); // Ensure only one log entry is found
     assert(sourceUuidLogs[0].message == msg); // Ensure the message matches
 
-    std::cout << "testSourceInfo passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 #else
-    std::cout << "testSourceInfo skipped (USE_SOURCE_INFO not defined)." << std::endl;
+    showMessage(testName + " skipped (USE_SOURCE_INFO not defined).");
 #endif
 }
 
@@ -1020,23 +988,29 @@ void testSourceInfo()
  */
 void testGetAllSources()
 {
+    std::string testName = "Get All Sources test";
+
 #ifdef USE_SOURCE_INFO
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database and sources before starting the test
     logger.clearLogs(true);
 
     // Add the source to the database and get its sourceId
     // Use TEST_SOURCE_INFO, which is already defined
-    int sourceId = logger.addSource(TEST_SOURCE_INFO.name, TEST_SOURCE_INFO.uuid);
+    int sourceId = logger.addSource(testConfig.sourceName.value(), testConfig.sourceUuid.value());
     assert(sourceId != SOURCE_NOT_FOUND); // Ensure the source was added successfully
 
     auto allSources = logger.getAllSources();
     assert(allSources.size() == 1); // Ensure only one source is found
-    assert(allSources[0].uuid == TEST_SOURCE_INFO.uuid); // Ensure the UUID matches
-    assert(allSources[0].name == TEST_SOURCE_INFO.name); // Ensure the name matches
+    assert(allSources[0].uuid == testConfig.sourceUuid.value()); // Ensure the UUID matches
+    assert(allSources[0].name == testConfig.sourceName.value()); // Ensure the name matches
 
-    std::cout << "testGetAllSources passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 #else
-    std::cout << "testGetAllSources skipped (USE_SOURCE_INFO not defined)." << std::endl;
+    showMessage(testName + " skipped (USE_SOURCE_INFO not defined).");
 #endif
 }
 
@@ -1045,35 +1019,45 @@ void testGetAllSources()
  */
 void testGetSourceByUuid()
 {
+    std::string testName = "Get Source By Uuid test";
+
+
 #ifdef USE_SOURCE_INFO
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs(true);
 
     // Add the source to the database and get its sourceId
     // Use TEST_SOURCE_INFO, which is already defined
-    int sourceId = logger.addSource(TEST_SOURCE_INFO.name, TEST_SOURCE_INFO.uuid);
+    int sourceId = logger.addSource(testConfig.sourceName.value(), testConfig.sourceUuid.value());
     assert(sourceId != SOURCE_NOT_FOUND); // Ensure the source was added successfully
 
     // Retrieve the source information by UUID
-    auto retrievedSource = logger.getSourceByUuid(TEST_SOURCE_INFO.uuid);
+    auto retrievedSource = logger.getSourceByUuid(testConfig.sourceUuid.value());
     assert(retrievedSource.has_value()); // Ensure the source was found
-    assert(retrievedSource->uuid == TEST_SOURCE_INFO.uuid); // Ensure the UUID matches
-    assert(retrievedSource->name == TEST_SOURCE_INFO.name); // Ensure the name matches
+    assert(retrievedSource->uuid == testConfig.sourceUuid.value()); // Ensure the UUID matches
+    assert(retrievedSource->name == testConfig.sourceName.value()); // Ensure the name matches
 
-    std::cout << "testGetSourceByUuid passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 #else
-    std::cout << "testGetSourceByUuid skipped (USE_SOURCE_INFO not defined)." << std::endl;
+    showMessage(testName + " skipped (USE_SOURCE_INFO not defined).");
 #endif
 }
 
 void testEncryptDecrypt()
 {
+    std::string testName = "Encrypt Decrypt test";
+    showMessage(testName + " started...");
+
     const std::string sourceStr = TEST_ENC_DEC_STRING;
     const std::string encodedStr = LogCrypto::encrypt(sourceStr, TEST_ENC_DEC_PASS_KEY);
     const std::string decodedStr = LogCrypto::decrypt(encodedStr, TEST_ENC_DEC_PASS_KEY);
     assert(sourceStr == decodedStr);
 
-    std::cout << "testEncryptDecrypt passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -1082,13 +1066,29 @@ void testEncryptDecrypt()
  */
 void testMultiConnectionStress()
 {
-#if defined(TEST_DB_SQLITE) || defined(TEST_DB_MOCK)
-    std::cout << std::endl << "Skipping multi-connection test" << std::endl;
-    return;
-#endif
+    std::string testName = "Multi-Connection Stress test";
+    showMessage(testName + " started...");
 
-    const int numConnections = 10;    // Number of connections with unique sources
-    const int logsPerConnection = 1000; // Logs per connection
+    Logger& logger = getTestLogger(getTestConfig());
+
+    switch(testConfig.databaseType.value())
+    {
+        case DataBaseType::MySQL:
+        case DataBaseType::PostgreSQL:
+        case DataBaseType::MongoDB:
+            break;
+
+        case DataBaseType::Mock:
+        case DataBaseType::SQLite:
+        default:
+        {
+            std::cout << std::endl << "Skipping multi-connection test" << std::endl;
+            return;
+        }
+    }
+
+    const int numConnections = TEST_STRESS_NUM_CONNECTIONS; // Number of connections with unique sources
+    const int logsPerConnection = TEST_STRESS_LOGS_PER_CONNECTION; // Logs per connection
     std::vector<std::thread> threads;
     std::atomic<int> logsWritten{ 0 };
 
@@ -1099,39 +1099,30 @@ void testMultiConnectionStress()
 #endif
           );
 
+    std::string loggerNamePrefix = "stress_logger_";
+    std::string sourceNamePrefix = "stress_source_";
+
     // Thread function with unique Source Info
     auto writerFunc = [ & ](int connId)
     {
         // Create unique config per connection
-        auto config = TEST_CONFIG;
+        LogConfig::Config config = getTestConfig();
 
         auto connString = LogConfig::configToConnectionString(config);
 
-#if defined(TEST_DB_MOCK)
-        auto dbType = DataBaseType::Mock;
-#elif defined(TEST_DB_SQLITE)
-        auto dbType = DataBaseType::SQLite;
-#elif defined(TEST_DB_MYSQL)
-        auto dbType = DataBaseType::MySQL;
-#elif defined(TEST_DB_POSTGRESQL)
-        auto dbType = DataBaseType::PostgreSQL;
-#elif defined(TEST_DB_MONGODB)
-        auto dbType = DataBaseType::MongoDB;
-#endif
+        std::string loggerName = loggerNamePrefix + std::to_string(connId);
+        config.name = loggerName;
 
-        // Generate unique source info
 #ifdef USE_SOURCE_INFO
+        // Generate unique source info
         SourceInfo srcInfo;
-        srcInfo.name = "STRESS_SOURCE_" + std::to_string(connId);
+        srcInfo.name = sourceNamePrefix + std::to_string(connId);
         srcInfo.uuid = generateUUID();
 
         // Create logger with unique source
-        auto db = DatabaseFactory::create(dbType, connString);
-        Logger connLogger(std::move(db), config, srcInfo);
-
+        Logger& connLogger = LogManager::getInstance().createLogger(loggerName, config, srcInfo);
 #else
-        auto db = DatabaseFactory::create(dbType, connString);
-        Logger connLogger(std::move(db), config);
+        Logger& connLogger = LogManager::getInstance().createLogger(loggerName, config);
 #endif
 
         // Write logs
@@ -1161,7 +1152,7 @@ void testMultiConnectionStress()
     // Verify source-specific logging
     for(int i = 0; i < numConnections; ++i)
     {
-        std::string sourceName = "STRESS_SOURCE_" + std::to_string(i);
+        std::string sourceName = sourceNamePrefix + std::to_string(i);
         auto srcInfo = logger.getSourceByName(sourceName);
 
         if(srcInfo.has_value())
@@ -1175,19 +1166,34 @@ void testMultiConnectionStress()
 
     // Verify total logs
     auto allLogs = logger.getAllLogs();
-    std::cout << std::endl << "*** Multi-Connection Stress Test ***" << std::endl;
-    std::cout << "Number of connections: " << numConnections << std::endl;
-    std::cout << "Logs per connection: " << logsPerConnection << std::endl;
-    std::cout << "Expected logs: " << (numConnections* logsPerConnection) << std::endl;
-    std::cout << "Total logs: " << allLogs.size() << std::endl;
+
+    std::stringstream ss;
+    ss << std::endl << "*** Multi-Connection Stress Test ***" << std::endl;
+    ss << "Number of connections: " << numConnections << std::endl;
+    ss << "Logs per connection: " << logsPerConnection << std::endl;
+    ss << "Expected logs: " << (numConnections* logsPerConnection) << std::endl;
+    ss << "Total logs: " << allLogs.size() << std::endl;
+
+    showMessage(ss.str());
 
     assert(allLogs.size() == numConnections* logsPerConnection);
 
-    std::cout << "testMultiConnectionStress passed!" << std::endl;
+    // Shutdown stress test loggers by it's name
+    int removed = LogManager::getInstance().removeIf([ & ](const auto& name, const auto& logger)
+    {
+        return logger.getConfig().name.value().find(loggerNamePrefix) != std::string::npos;
+    });
+
+    showMessage(testName + " passed!\n");
 }
 
 void testLimitOffset()
 {
+    std::string testName = "Limit-Offset test";
+    showMessage(testName + " started...");
+
+    Logger& logger = getTestLogger(getTestConfig());
+
     // Clear the database before starting the test
     logger.clearLogs();
     const int numLogs = 10;
@@ -1225,7 +1231,7 @@ void testLimitOffset()
     assert(limitedLogs[1].message == allLogs[offset + 1].message);
     assert(limitedLogs[2].message == allLogs[offset + 2].message);
 
-    std::cout << "testLimitOffset passed!" << std::endl;
+    showMessage(testName + " passed!\n");
 }
 
 /**
@@ -1233,44 +1239,115 @@ void testLimitOffset()
  */
 void cleanup()
 {
-    logger.shutdown();
+    std::stringstream ss;
+    ss << "Shutdown " << (LogManager::getInstance().getCount() > 1
+                          ? "loggers: "
+                          : "logger: ");
+
+    auto loggersConfig = LogManager::getInstance().getAllLoggersConfigs();
+
+    std::vector<std::string> loggers;
+
+    for(auto & [name, config] : loggersConfig)
+    {
+        loggers.emplace_back(name);
+    }
+
+    ss << StringHelper::join(loggers, ", ");
+
+    showMessage(ss.str());
+    LogManager::getInstance().removeAllLoggers();
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    // Parse args
+    std::string configFile = [ & ]()
+    {
+        if(argc > 1)
+        {
+            std::string arg = argv[1];
+            if(arg == "-h" || arg == "--help")
+            {
+                std::cout << SQLOGGER_DESCRIPTION << std::endl;
+                std::cout << "Usage: " << argv[0] << " [config.ini]" << std::endl;
+                exit(0);
+            }
+            else if(arg == "-v" || arg == "--version")
+            {
+                std::cout << SQLOGGER_PROJECT_NAME << " v." << SQLOGGER_VERSION_FULL << std::endl;
+                exit(0);
+            }
+            return arg;
+        }
+        return std::string();
+    }
+    ();
+
     std::cout << SQLOGGER_PROJECT_NAME << " v." << SQLOGGER_VERSION_FULL << std::endl;
 
-    std::cout << "Test on: ";
-#if defined(TEST_DB_MOCK)
-    std::cout << DB_TYPE_STR_MOCK << " data" << std::endl;
-#elif defined(TEST_DB_SQLITE)
-    std::cout << DB_TYPE_STR_SQLITE << " database" << std::endl;
-    std::cout << TEST_DATABASE_FILE << std::endl;
-#elif defined(TEST_DB_MYSQL)
-    std::cout << DB_TYPE_STR_MYSQL << " database" << std::endl;
-    std::cout << TEST_CONN_STRING << std::endl;
-#elif defined(TEST_DB_POSTGRESQL)
-    std::cout << DB_TYPE_STR_POSTGRESQL << " database" << std::endl;
-    std::cout << TEST_CONN_STRING << std::endl;
-#elif defined(TEST_DB_MONGODB)
-    std::cout << DB_TYPE_STR_MONGODB << " database" << std::endl;
-    std::cout << TEST_CONN_STRING << std::endl;
-#endif
+    if(!configFile.empty())
+        std::cout << "Test config file: " << configFile << std::endl;
 
+    LogConfig::Config config = getTestConfig(configFile);
 
-#if TEST_USE_SYNC_MODE == 1
-    std::cout << "Sync Mode: ON" << std::endl;
-#else
-    std::cout << "Sync Mode: OFF" << std::endl;
-    std::cout << "Number of threads: " << TEST_NUM_THREADS << std::endl;
-#endif
+    DataBaseType requestedDb = config.databaseType.value();
 
-#if TEST_USE_BATCH == 1
-    std::cout << "Batch insert: ON" << std::endl;
-    std::cout << "Batch size: " << TEST_BATCH_SIZE << std::endl;
-#else
-    std::cout << "Batch Insert: OFF" << std::endl;
-#endif
+    if(!DataBaseHelper::isDataBaseSupported(requestedDb))
+    {
+        std::cerr << "Requested database type " << DataBaseHelper::databaseTypeToString(requestedDb) <<  " not supported in this build";
+        return 1;
+    }
+
+    // Create logger
+    Logger& logger = getTestLogger(config);
+
+    std::string TEST_CONN_STRING =  LogConfig::configToConnectionString(config);
+
+    // Getting database type
+    DataBaseType dbType = logger.getDataBaseType();
+
+    // Getting string representation of the database type
+    std::stringstream dbTypeString;
+    dbTypeString << DataBaseHelper::databaseTypeToString(dbType);
+
+    std::cout << "Tested on: ";
+
+    switch(dbType)
+    {
+        case DataBaseType::Mock:
+            dbTypeString << " data";
+            break;
+
+        case DataBaseType::SQLite:
+            dbTypeString << " database" << std::endl << "Database file: " << TEST_DATABASE_FILE;
+            break;
+
+        case DataBaseType::MySQL:
+        case DataBaseType::PostgreSQL:
+        case DataBaseType::MongoDB:
+            dbTypeString << " database" << std::endl << "Connection string: " << TEST_CONN_STRING;
+            break;
+
+        default:
+            break;
+    }
+
+    std::cout << dbTypeString.str() << std::endl;
+
+    // Getting logger name
+    std::string loggerName = logger.getName();
+    std::cout << "Logger name: " << loggerName << std::endl;
+
+    // Getting sync mode
+    bool isSyncMode = logger.isSyncMode();
+    std::cout << "Sync Mode: " << (isSyncMode ? "ON" : "OFF") << std::endl;
+    std::cout << (isSyncMode ? "" : std::string("Number of threads: " + std::to_string(logger.getNumThreads()) + "\n"));
+
+    // Getting use batch
+    bool useBatch = logger.isBatchEnabled();
+    std::cout << "Batch Insert: " << (useBatch ? "ON" : "OFF") << std::endl;
+    std::cout << (useBatch ?  std::string("Batch size: " + std::to_string(logger.getBatchSize()) + "\n") : "");
 
 #ifdef USE_SOURCE_INFO
     std::cout << "Source Info: ON" << std::endl;
@@ -1285,8 +1362,6 @@ int main()
 #endif
 
     std::cout << std::endl;
-
-    logger.setLogLevel(TEST_LOG_LEVEL);
 
     try
     {
@@ -1305,15 +1380,13 @@ int main()
         testGetSourceByUuid();
         testGetAllSources();
 #endif
-        //testErrorHandling(); // TODO:
         testMultiThread();
         testFileExport();
         testClearLogs();
         testPerformance();
         testMultiConnectionStress();
 
-        std::cout << std::endl;
-        std::cout << "All tests passed successfully!" << std::endl;
+        std::cout << "All tests passed successfully!" << std::endl << std::endl;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 

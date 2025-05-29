@@ -42,7 +42,7 @@ bool LogWriter::writeLog(const LogEntry& entry)
 
     std::string query = QueryBuilder::buildInsert(
                             database.getDatabaseType(),
-                            LOG_TABLE_NAME,
+                            logsTableName,
                             values
                         );
 
@@ -81,7 +81,7 @@ bool LogWriter::writeLogBatch(const LogEntryList& entries)
     };
 
     std::string query = QueryBuilder::buildBatchInsert(
-                            LOG_TABLE_NAME,
+                            logsTableName,
                             fields,
                             entries.size(),
                             database.getDatabaseType()
@@ -117,7 +117,7 @@ void LogWriter::clearLogs()
 {
     std::string query = QueryBuilder::buildDelete(
                             database.getDatabaseType(),
-                            LOG_TABLE_NAME,
+                            logsTableName,
                             {} // No filters
                         );
 
@@ -147,7 +147,7 @@ void LogWriter::createLogsTable()
 {
     std::string checkQueryLogs = QueryBuilder::buildTableExistsQuery(
                                      database.getDatabaseType(),
-                                     LOG_TABLE_NAME
+                                     logsTableName
                                  );
 
 #ifdef USE_SOURCE_INFO
@@ -164,7 +164,7 @@ void LogWriter::createLogsTable()
       )
         return; // Skip if exists
 
-    auto logTable = DatabaseSchema::createTableBuilder(LOG_TABLE_NAME)
+    auto logTable = DatabaseSchema::createTableBuilder(logsTableName)
                     .addStandardField<FieldType::Int64>(FIELD_LOG_ID, true, false, true)  // PRIMARY AUTOINCREMENT KEY
 #ifdef USE_SOURCE_INFO
                     .addStandardField<FieldType::Int64>(FIELD_LOG_SOURCES_ID, false, false, false)
@@ -218,7 +218,7 @@ void LogWriter::createIndexes()
 
         std::string query = QueryBuilder::buildCreateIndex(
                                 database.getDatabaseType(),
-                                LOG_TABLE_NAME,
+                                logsTableName,
                                 idxPrefix + field,
         { field }
                             );
@@ -277,13 +277,11 @@ void LogWriter::createSourcesTable()
     if(!database.query(checkQuerySources).empty())
         return; // Skip if exists
 
-#ifdef USE_SOURCE_INFO
     auto sourcesTable = DatabaseSchema::createTableBuilder(SOURCES_TABLE_NAME)
                         .addStandardField<FieldType::Int64>(FIELD_SOURCES_ID, true, false, true) // PRIMARY AUTOINCREMENT KEY
                         .addStandardField<FieldType::UUID>(FIELD_SOURCES_UUID, false, false, false, true) // UNIQUE KEY
                         .addStandardField<FieldType::String>(FIELD_SOURCES_NAME, false, false, false)
                         .build();
-#endif
 
     std::string query = QueryBuilder::buildCreateTable(
                             sourcesTable,
