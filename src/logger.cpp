@@ -677,11 +677,14 @@ LogEntryList Logger::getLogsByFilters(const std::vector<Filter> & filters,
 
 /**
  * @brief Retrieves all log entries.
+ * @param limit Maximum number of log entries to return.
+ * @param offset Number of log entries to skip before returning results.
  * @return A list of all log entries.
  */
-LogEntryList Logger::getAllLogs()
+LogEntryList Logger::getAllLogs(const int limit,
+                                const int offset)
 {
-    return getLogsByFilters({});
+    return getLogsByFilters({}, limit, offset);
 }
 
 /**

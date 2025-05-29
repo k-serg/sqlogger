@@ -1219,7 +1219,7 @@ void testLimitOffset()
     LogEntryList allLogs = logger.getAllLogs();
 
     // Retrieve logs using the limit and offset
-    LogEntryList limitedLogs = logger.getLogsByFilters(filters, limit, offset);
+    LogEntryList limitedLogs = logger.getAllLogs(limit, offset);
 
     printLogs(limitedLogs);
 

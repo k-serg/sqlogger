@@ -201,15 +201,12 @@ class LOGGER_API Logger
         *        - Comparison operator ("=", ">", "<=" etc.)
         *        - Value to match
         *        - Optional type hint (for special handling)
-        *
         * @param limit Maximum number of log entries to return.
         *        - Use -1 for no limit (default)
         *        - Positive values enable pagination
-        *
         * @param offset Number of log entries to skip before returning results.
         *        - Use -1 to disable (default)
         *        - Requires positive limit to take effect
-        *
         * @return LogEntryList List of log entries ordered by timestamp (descending).
         */
         LogEntryList getLogsByFilters(const std::vector<Filter> & filters,
@@ -218,9 +215,12 @@ class LOGGER_API Logger
 
         /**
          * @brief Retrieves all log entries.
+         * @param limit Maximum number of log entries to return.
+         * @param offset Number of log entries to skip before returning results.
          * @return A list of all log entries.
          */
-        LogEntryList getAllLogs();
+        LogEntryList getAllLogs(const int limit = -1,
+                                const int offset = -1);
 
         /**
          * @brief Retrieves log entries with the specified level.
