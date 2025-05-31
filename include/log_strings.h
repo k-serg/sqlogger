@@ -42,7 +42,6 @@
 #define ERR_MSG_PASSKEY_EMPTY "Passkey is empty. Set passkey value"
 #define ERR_MSG_FAILED_BATCH_TASK "Batch task failed: "
 #define ERR_MSG_FAILED_BATCH_QUERY "Batch query failed: "
-
 #define ERR_MSG_LOGGER_EXISTS "Logger exists: "
 #define ERR_MSG_DB_TYPE_NOT_SPECIFIED "Database type not specified"
 #define ERR_MSG_LOGGER_NAME_NOT_FOUND "Logger name not found: "

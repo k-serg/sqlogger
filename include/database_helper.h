@@ -45,8 +45,9 @@
 #define DB_PARAM_PREFIX_POSTGRESQL "$"
 
 #define DB_BATCH_NOT_SUPPORTED -1
+#define DB_MIN_BATCH_SIZE 1
 #define DB_MAX_BATCH_DEFAULT 500
-#define DB_MAX_BATCH_MOCK 0
+#define DB_MAX_BATCH_MOCK DB_BATCH_NOT_SUPPORTED
 #define DB_MAX_BATCH_SQLITE 1000
 #define DB_MAX_BATCH_MYSQL 5000
 #define DB_MAX_BATCH_POSTGRESQL 10000
@@ -82,6 +83,10 @@ enum class ValueType
  */
 namespace DataBaseHelper
 {
+    bool isDataBaseEmbedded(const DataBaseType& dbType);
+
+    bool isDataBaseServer(const DataBaseType& dbType);
+
     /**
     * @brief Checks if a database type is supported in the current build configuration.
     * Determines whether the database type is available based on compile-time

@@ -19,6 +19,32 @@
 
 #include "database_helper.h"
 
+bool DataBaseHelper::isDataBaseEmbedded(const DataBaseType& dbType)
+{
+    return !isDataBaseServer(dbType);
+}
+
+bool DataBaseHelper::isDataBaseServer(const DataBaseType& dbType)
+{
+    switch(dbType)
+    {
+        case DataBaseType::Mock:
+        case DataBaseType::SQLite:
+            return false;
+            break;
+
+        case DataBaseType::MySQL:
+        case DataBaseType::PostgreSQL:
+        case DataBaseType::MongoDB:
+            return true;
+            break;
+
+        default:
+            throw std::invalid_argument(ERR_MSG_UNSUPPORTED_DB);
+            break;
+    }
+}
+
 /**
  * @brief Checks if a database type is supported in the current build configuration.
  * Determines whether the database type is available based on compile-time

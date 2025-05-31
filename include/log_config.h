@@ -44,7 +44,7 @@ constexpr LogLevel LOG_DEFAULT_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default min
 #define LOG_INI_KEY_BATCH_SIZE "BatchSize"
 
 #define LOG_INI_SECTION_DATABASE "Database"
-#define LOG_INI_KEY_DATABASE_NAME "Database"
+#define LOG_INI_KEY_DATABASE_NAME "Name"
 #define LOG_INI_KEY_DATABASE_TABLE "Table"
 #define LOG_INI_KEY_DATABASE_HOST "Host"
 #define LOG_INI_KEY_DATABASE_PORT "Port"
@@ -64,7 +64,37 @@ constexpr LogLevel LOG_DEFAULT_MIN_LOG_LEVEL = LogLevel::Trace; ///< Default min
 #define CON_STR_USER LOG_INI_KEY_DATABASE_USER
 #define CON_STR_PASS LOG_INI_KEY_DATABASE_PASS
 
+#define LOG_NUM_THREADS_MIN 1
+#define LOG_NUM_THREADS_MAX 256
+#define LOG_MIN_PORT_NUM 0
+#define LOG_MAX_PORT_NUM 65535
+
 constexpr char* LOG_DEFAULT_INI_FILENAME = SQLOGGER_PROJECT_NAME ".ini";
+
+constexpr char* tagLogger = "[" LOG_INI_SECTION_LOGGER "]";
+constexpr char* tagDatabase = "[" LOG_INI_SECTION_DATABASE "]";
+constexpr char* tagSource = "[" LOG_INI_SECTION_SOURCE "]";
+
+/**
+ *Used to validate user input and configuration parameters before using them in SQL queries.
+ * @note Patterns are :
+ * - SQL comments(--)
+ * - Statement terminators(;)
+ * - String delimiters(", ')
+ * - Dangerous SQL keywords(SELECT, INSERT, DROP etc.)
+ * - Common injection patterns(1 = 1, ' OR '1'='1)
+ * @see containsSQLInjection()
+ * @see validateDatabase()
+ */
+constexpr const char* dangerousSQLPatterns[] =
+{
+    "--", ";", "\"", "\'",
+    "/*", "*/", "xp_", "exec ",
+    "union ", "select ", "insert ",
+    "update ", "delete ", "drop ",
+    "truncate ", "alter ", "create ",
+    "shutdown", "1=1", " or "
+};
 
 /**
  * @namespace StringHelper
@@ -79,86 +109,269 @@ namespace StringHelper
      * @return std::string The resulting concatenated string
      */
     std::string join(const std::vector<std::string> & parts, const std::string& delimiter);
+
+    /**
+    * @brief Splits a string into a vector of strings using a delimiter
+    * @param str The string to split
+    * @param delimiter The string to use as delimiter
+    * @return std::vector<std::string> The resulting vector of strings
+    */
+    std::vector<std::string> split(const std::string& str, const std::string& delimiter);
 };
 
 /**
  * @namespace LogConfig
  * @brief Provides configuration management for the logging system
- *
  * @details This namespace contains all types and functions related to logger configuration,
  * including loading/saving settings from INI files, managing database connections,
  * and handling security-sensitive parameters.
- *
  * @see Config for the main configuration structure
  * @see DataBaseType for supported database types
  * @see INI namespace for file format details
  */
 namespace LogConfig
 {
+
+    /**
+     * @struct ValidateResult
+     * @brief Container for configuration validation results.
+     * Stores validation status including missing and invalid parameters with error details.
+     * Provides methods to combine results and format error output.
+     */
+    struct ValidateResult
+    {
+        public:
+
+            /**
+            * @brief Checks if validation was successful.
+            * @return true if all validations passed (no missing or invalid parameters).
+            * @return false if any validation failed.
+            */
+            inline bool ok() const;
+
+            /**
+            * @brief Formats validation errors as human-readable string.
+            * @return std::string Formatted error message containing:
+            * - Missing parameters (comma-separated).
+            * - Invalid parameters with details (one per line).
+            */
+            std::string print() const;
+
+        private:
+
+            friend class Config;
+
+            /**
+            * @brief Records a missing parameter error.
+            * @param param Name of the missing parameter.
+            * @note Automatically sets success=false.
+            */
+            inline void addMissing(const::std::string& param);
+
+            /**
+            * @brief Records an invalid parameter error.
+            * @param param Name of the invalid parameter.
+            * @param details Description of the validation failure.
+            * @note Automatically sets success=false.
+            */
+            inline void addInvalid(const::std::string& param, const::std::string& details);
+
+            /**
+            * @brief Combines validation results from another ValidateResult.
+            * @param other Another validation result to merge into this one.
+            * @note Merged result will be unsuccessful if either source was unsuccessful.
+            */
+            void merge(const ValidateResult& other);
+
+            bool success = true; ///< Overall validation status (true if all checks passed)
+            std::vector<std::string> missingParams; ///< List of missing required parameters
+            std::vector<std::pair<std::string, std::string>> invalidParams; ///< List of invalid parameters with error details
+    };
+
     /**
      * @struct Config
      * @brief Configuration settings for the logger.
      */
     struct Config
     {
-        std::optional<std::string> name; ///< Logger name.
-        std::optional<bool> syncMode; ///< Synchronization mode (true for synchronous logging).
-        std::optional<size_t> numThreads; ///< Number of threads for asynchronous logging.
-        std::optional<bool> onlyFileNames; ///< Whether to log only filenames (without full paths).
-        std::optional<LogLevel> minLogLevel; ///< Minimum log level for messages to be logged.
-        std::optional<std::string> databaseName; ///< Name of the database to use for logging.
-        std::optional<std::string> databaseTable; ///< Name of the table to use for logging.
-        std::optional<std::string> databaseHost; ///< Host address of the database.
-        std::optional<int> databasePort; ///< Port number of the database.
-        std::optional<std::string> databaseUser; ///< Username for the database.
-        std::optional<std::string> databasePass; ///< Password for the database.
-        std::optional<DataBaseType> databaseType; ///< Type of the database (e.g., MySQL, SQLite).
-        std::optional<bool> useBatch;
-        std::optional<int> batchSize;
+            std::optional<std::string> name; ///< Logger name.
+            std::optional<bool> syncMode; ///< Synchronization mode (true for synchronous logging).
+            std::optional<size_t> numThreads; ///< Number of threads for asynchronous logging.
+            std::optional<bool> onlyFileNames; ///< Whether to log only filenames (without full paths).
+            std::optional<LogLevel> minLogLevel; ///< Minimum log level for messages to be logged.
+            std::optional<std::string> databaseName; ///< Name of the database to use for logging.
+            std::optional<std::string> databaseTable; ///< Name of the table to use for logging.
+            std::optional<std::string> databaseHost; ///< Host address of the database.
+            std::optional<int> databasePort; ///< Port number of the database.
+            std::optional<std::string> databaseUser; ///< Username for the database.
+            std::optional<std::string> databasePass; ///< Password for the database.
+            std::optional<DataBaseType> databaseType; ///< Type of the database (e.g., MySQL, SQLite).
+            std::optional<bool> useBatch;
+            std::optional<int> batchSize;
 #ifdef USE_SOURCE_INFO
-        std::optional<std::string> sourceUuid;  /**< The universally unique identifier (UUID) of the source. */
-        std::optional<std::string> sourceName;  /**< The name of the source. */
+            std::optional<std::string> sourceUuid;  /**< The universally unique identifier (UUID) of the source. */
+            std::optional<std::string> sourceName;  /**< The name of the source. */
 #endif
-        std::optional<std::string> passKey; ///< Key for password encryption and decryption.
+            std::optional<std::string> passKey; ///< Key for password encryption and decryption.
 
-        /**
-        * @brief Sets the password key for password encryption and decryption.
-        * @param passKey The secret key for password encryption and decryption.
-        * @throws std::runtime_error If passKey empty.
-        * @note The key is stored in memory in plaintext. Consider additional security
-        * measures if handling highly sensitive data.
-        * @warning Avoid hardcoding keys in source code. Prefer secure configuration
-        * or key management systems for production environments.
-        */
-        void setPassKey(const std::string& passKey);
+            /**
+            * @brief Sets the password key for password encryption and decryption.
+            * @param passKey The secret key for password encryption and decryption.
+            * @throws std::runtime_error If passKey empty.
+            * @note The key is stored in memory in plaintext. Consider additional security
+            * measures if handling highly sensitive data.
+            * @warning Avoid hardcoding keys in source code. Prefer secure configuration
+            * or key management systems for production environments.
+            */
+            void setPassKey(const std::string& passKey);
 
-        /**
-        * @brief Retrieves the current password key
-        * @return std::string The stored password key
-        * @throws std::runtime_error If no key has been set (when passKey is empty)
-        * @note The returned key should be handled securely and cleared from memory
-        * when no longer needed.
-        * @warning Exposing the key through logs or debugging outputs creates
-        * security vulnerabilities.
-        */
-        std::string getPassKey();
+            /**
+            * @brief Retrieves the current password key
+            * @return std::string The stored password key
+            * @throws std::runtime_error If no key has been set (when passKey is empty)
+            * @note The returned key should be handled securely and cleared from memory
+            * when no longer needed.
+            * @warning Exposing the key through logs or debugging outputs creates
+            * security vulnerabilities.
+            */
+            std::string getPassKey();
 
-        /**
-         * @brief Loads configuration from an INI file.
-         * @param filename The path to the INI file.
-         * @param passKey The key for password decryption.
-         * @return A Config object containing the loaded settings.
-         * @throws std::runtime_error If the file cannot be parsed.
-         */
-        static Config loadFromINI(const std::string& filename = LOG_DEFAULT_INI_FILENAME, const std::string& passKey = "");
+            /**
+             * @brief Loads configuration from an INI file.
+             * @param filename The path to the INI file.
+             * @param passKey The key for password decryption.
+             * @return A Config object containing the loaded settings.
+             * @throws std::runtime_error If the file cannot be parsed.
+             */
+            static Config loadFromINI(const std::string& filename = LOG_DEFAULT_INI_FILENAME, const std::string& passKey = "");
 
-        /**
-         * @brief Saves configuration to an INI file.
-         * @param config The Config object to save.
-         * @param filename The path to the INI file.
-         * @throws std::runtime_error If the file cannot be written.
-         */
-        static void saveToINI(const Config& config, const std::string& filename = LOG_DEFAULT_INI_FILENAME);
+            /**
+             * @brief Saves configuration to an INI file.
+             * @param config The Config object to save.
+             * @param filename The path to the INI file.
+             * @throws std::runtime_error If the file cannot be written.
+             */
+            static void saveToINI(const Config& config, const std::string& filename = LOG_DEFAULT_INI_FILENAME);
+
+            /**
+             * @brief Validates the entire configuration
+             * @return ValidateResult Contains validation status and error details:
+             * - success: true if all validations pass
+             * - missingParams: List of missing required parameters
+             * - invalidParams: List of invalid parameters with error messages
+             * @note This method combines results from all specific validators (name, database, etc.)
+             * @see validateName(), validateDatabase(), validateThreads()
+             * @see validateSource(), validateBatch(), validateLogLevel()
+             */
+            ValidateResult validate() const;
+
+            /**
+             * @brief Validates the entire configuration (static method)
+             * @return ValidateResult Contains validation status and error details:
+             * - success: true if all validations pass
+             * - missingParams: List of missing required parameters
+             * - invalidParams: List of invalid parameters with error messages
+             * @note This method combines results from all specific validators (name, database, etc.)
+             * @see validateName(), validateDatabase(), validateThreads()
+             * @see validateSource(), validateBatch(), validateLogLevel()
+             */
+            static ValidateResult validate(const Config& config);
+
+        private:
+
+            /**
+             * @brief Checks for potential SQL injection patterns in input string
+             * @param input The string to validate
+             * @return true if dangerous patterns detected, false otherwise
+             * @note Uses case-insensitive comparison via LogHelper::toLowerCase()
+             */
+            bool containsSQLInjection(const std::string& input) const;
+
+            /**
+             * @brief Validates the logger name configuration
+             * @return ValidateResult Contains:
+             * - success: true if name is valid
+             * - missingParams: Contains "name" if empty/missing
+             * - invalidParams: Empty (no invalid state possible for name)
+             * @details Checks:
+             * - Name is not empty (if present)
+             * - Name meets length requirements (if any)
+             */
+            ValidateResult validateName() const;
+
+            /**
+             * @brief Validates database connection parameters
+             * @return ValidateResult Contains:
+             * - success: true if all database parameters are valid
+             * - missingParams: List of missing required database params
+             * - invalidParams: List of invalid database params with error details
+             * @details Checks:
+             * - Database type is supported
+             * - Required parameters for the database type are present
+             * - Port number is valid (0-65535)
+             * - Credentials are provided (if required)
+             * - Table name is specified
+             */
+            ValidateResult validateDatabase() const;
+
+            /**
+             * @brief Validates threading configuration
+             * @return ValidateResult Contains:
+             * - success: true if thread configuration is valid
+             * - missingParams: Empty (thread count has default value)
+             * - invalidParams: Contains error if thread count is out of valid range
+             * @details Checks:
+             * - Thread count is within allowed range (1-256)
+             * - Thread count is present if async mode is enabled
+             */
+            ValidateResult validateThreads() const;
+
+            /**
+             * @brief Validates batch configuration
+             * @return ValidateResult Contains:
+             * - success: true if batch configuration is valid
+             * - missingParams: Empty (batch size has default value)
+             * - invalidParams: Contains error if batch size is out of valid range
+             * @details Checks:
+             * - Batch size is within allowed range for database type (1-10000 depends on database type)
+             * - Batch size is present if async mode is enabled
+             * @see getMaxBatchSize()
+             * @see DB_MAX_BATCH_SQLITE, DB_MAX_BATCH_MYSQL, DB_MAX_BATCH_POSTGRESQL
+             */
+            ValidateResult validateBatch() const;
+
+            /**
+             * @brief Validates the minimum log level configuration
+             * @return ValidateResult Contains validation status with:
+             * - success: true if log level is properly configured
+             * - missingParams: Contains log level key if not specified
+             * - invalidParams: Empty (no invalid state possible for log level)
+             * @details Checks:
+             * - Minimum log level is specified in configuration
+             * - Log level value is within allowed range (implied by LogLevel enum)
+             * @note The actual validity of the log level value is ensured by
+             * LogHelper::stringToLevel() during configuration loading.
+             * This method only verifies presence of the setting.
+             * @see LOG_INI_KEY_MIN_LOG_LEVEL
+             * @see LogLevel
+             * @see LogHelper::stringToLevel()
+             */
+            ValidateResult validateLogLevel() const;
+
+#ifdef USE_SOURCE_INFO
+            /**
+             * @brief Validates source UUID configuration (if enabled)
+             * @return ValidateResult Contains:
+             * - success: true if UUID is valid
+             * - missingParams: Contains "uuid" if missing when required
+             * - invalidParams: Contains "uuid" if format is invalid
+             * @details Checks:
+             * - UUID is present (if source info is enabled)
+             * - UUID follows proper format (if specified)
+             * @note Only active when USE_SOURCE_INFO is defined
+             */
+            ValidateResult validateSource() const;
+#endif
     };
 
     /**

@@ -375,7 +375,7 @@ BatchSize = 100
 
 [Database]
 Type = SQLite
-Database = logs.db
+Name = logs.db
 Table = logs
 # For networked databases:
 # Host = localhost
@@ -387,6 +387,106 @@ Table = logs
 Uuid = 550e8400-e29b-41d4-a716-446655440000
 Name = MyApplication
 ```
+### Configuration Validation
+
+The library provides comprehensive validation for logger configuration:
+
+**Validation Methods:**
+```cpp
+public:
+    // Validate entire configuration
+    ValidateResult validate() const;
+    
+    // Static validation helper
+    static ValidateResult validate(const Config& config);
+
+private:
+    // Validate specific configuration aspects
+    ValidateResult validateName() const;
+    ValidateResult validateDatabase() const;
+    ValidateResult validateThreads() const;
+    ValidateResult validateBatch() const;
+    ValidateResult validateLogLevel() const;
+    #ifdef USE_SOURCE_INFO
+    ValidateResult validateSource() const;
+    #endif
+```
+
+**Validation Result Structure:**
+```cpp
+struct ValidateResult
+{
+public:
+    // Check if validation passed
+    bool ok() const;
+    
+    // Format errors as human-readable string
+    std::string print() const;
+
+private:
+    bool success = true; ///< Overall validation status
+    std::vector<std::string> missingParams; ///< List of missing required parameters
+    std::vector<std::pair<std::string, std::string>> invalidParams; ///< Invalid parameters with error details
+   
+    // Add validation errors
+    void addMissing(const std::string& param);
+    void addInvalid(const std::string& param, const std::string& details);
+    
+    // Combine validation results
+    void merge(const ValidateResult& other);
+};
+```
+
+**Validation Rules:**
+1. **Logger Name**:
+   - Must be non-empty if specified
+   - No invalid states (only missing check)
+
+2. **Database**:
+   - Type must be specified and supported
+   - Name and table name must be non-empty
+   - For server databases (MySQL/PostgreSQL):
+     - Host, user, password must be specified
+     - Port must be within 0-65535 range
+
+3. **Threading**:
+   - Thread count required in async mode (```syncMode=false```)
+   - Thread count must be between 1-256
+
+4. **Batch Processing**:
+   - Batch size must be specified if batching enabled
+   - Size must be within limits for database type
+   - Must be supported by database type
+
+5. **Log Level**:
+   - Must be specified (non-null)
+   - Automatically validated during load (conversion from string)
+
+6. **Source Info** (when enabled):
+   - UUID must be present and valid
+   - Name must be present
+
+**Example Usage:**
+```cpp
+// Load config
+auto config = LogConfig::Config::loadFromINI("config.ini");
+
+// Validate
+auto result = config.validate();
+if(!result.ok())
+{
+    std::cerr << "Configuration errors:\n" << result.print();
+    exit(1);
+}
+```
+
+**Validation in INI Loading:**
+
+The `loadFromINI()` method performs basic validation during loading:
+- Numeric values (ports, thread counts) are checked for valid format
+- Log levels are validated during conversion
+- Boolean values ("true"/"false") are strictly checked
+- Empty values are properly handled
 
 ### LogManager
 

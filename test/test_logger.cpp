@@ -146,6 +146,13 @@ namespace
                 else
                 {
                     testConfig = LogConfig::Config::loadFromINI(configFile, TEST_ENC_DEC_PASS_KEY);
+
+                    LogConfig::ValidateResult result = testConfig.validate();
+                    if(!result.ok())
+                    {
+                        std::string err = result.print();
+                        throw std::runtime_error(err);
+                    }
                 }
             }
             catch(const std::exception& e)
@@ -156,7 +163,6 @@ namespace
         }
         return testConfig;
     }
-
 
     Logger& getTestLogger(const LogConfig::Config& config)
     {

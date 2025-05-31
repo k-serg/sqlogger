@@ -189,6 +189,18 @@ namespace LogHelper
     };
 
     /**
+     * @brief Transform string into lower case. ASCII-only.
+     * @param input Source string.
+     * @return String transformed into lower case.
+    */
+    static std::string toLowerCase(const std::string& input)
+    {
+        std::string result = input;
+        std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+        return result;
+    };
+
+    /**
      * @brief Converts a log level to its string representation.
      * @param level The log level to convert.
      * @return The string representation of the log level.

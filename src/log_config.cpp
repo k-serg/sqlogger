@@ -38,10 +38,111 @@ std::string StringHelper::join(const std::vector<std::string> & parts, const std
         result += parts[i];
     }
     return result;
-}
+};
+
+/**
+* @brief Splits a string into a vector of strings using a delimiter
+* @param str The string to split
+* @param delimiter The string to use as delimiter
+* @return std::vector<std::string> The resulting vector of strings
+*/
+std::vector<std::string> StringHelper::split(const std::string& str, const std::string& delimiter)
+{
+    std::vector<std::string> result;
+    size_t start = 0;
+    size_t end = str.find(delimiter);
+
+    while(end != std::string::npos)
+    {
+        result.push_back(str.substr(start, end - start));
+        start = end + delimiter.length();
+        end = str.find(delimiter, start);
+    }
+
+    result.push_back(str.substr(start));
+
+    return result;
+};
 
 namespace LogConfig
 {
+    /**
+        * @brief Checks if validation was successful.
+        * @return true if all validations passed (no missing or invalid parameters).
+        * @return false if any validation failed.
+        */
+    inline bool ValidateResult::ok() const
+    {
+        return success && missingParams.empty() && invalidParams.empty();
+    };
+
+    /**
+    * @brief Formats validation errors as human-readable string.
+    * @return std::string Formatted error message containing:
+    * - Missing parameters (comma-separated).
+    * - Invalid parameters with details (one per line).
+    */
+    std::string ValidateResult::print() const
+    {
+        std::stringstream ss;
+
+        if(!missingParams.empty())
+        {
+            ss << "Missing params: " << std::endl;
+            ss << StringHelper::join(missingParams, ", ");
+            ss << std::endl;
+        }
+
+        if(!invalidParams.empty())
+        {
+            ss << "Invalid params:\n";
+            for(const auto & [param, detail] : invalidParams)
+            {
+                ss << param << ": " << detail << std::endl;
+            }
+        }
+        ss << std::endl;
+        return ss.str();
+    };
+
+    /**
+    * @brief Records a missing parameter error.
+    * @param param Name of the missing parameter.
+    * @note Automatically sets success=false.
+    */
+    inline void ValidateResult::addMissing(const::std::string& param)
+    {
+        success = false;
+        missingParams.emplace_back(param);
+    };
+
+    /**
+    * @brief Records an invalid parameter error.
+    * @param param Name of the invalid parameter.
+    * @param details Description of the validation failure.
+    * @note Automatically sets success=false.
+    */
+    inline void ValidateResult::addInvalid(const::std::string& param, const::std::string& details)
+    {
+        success = false;
+        invalidParams.emplace_back(param, details);
+    };
+
+    /**
+        * @brief Combines validation results from another ValidateResult.
+        * @param other Another validation result to merge into this one.
+        * @note Merged result will be unsuccessful if either source was unsuccessful.
+        */
+    void ValidateResult::merge(const ValidateResult& other)
+    {
+        if(!other.success)
+        {
+            success = false;
+        }
+        missingParams.insert(missingParams.end(), other.missingParams.begin(), other.missingParams.end());
+        invalidParams.insert(invalidParams.end(), other.invalidParams.begin(), other.invalidParams.end());
+    };
+
     /**
     * @brief Sets the password key for password encryption and decryption.
     * @param passKey The secret key for password encryption and decryption.
@@ -102,27 +203,48 @@ namespace LogConfig
             }
             if(loggerSection.count(LOG_INI_KEY_SYNC_MODE))
             {
-                config.syncMode = (loggerSection.at(LOG_INI_KEY_SYNC_MODE) == "true");
+                config.syncMode = LogHelper::toLowerCase(loggerSection.at(LOG_INI_KEY_SYNC_MODE)) == "true";
             }
             if(loggerSection.count(LOG_INI_KEY_NUM_THREADS))
             {
-                config.numThreads = std::stoul(loggerSection.at(LOG_INI_KEY_NUM_THREADS));
+                if(LogHelper::isNumeric(loggerSection.at(LOG_INI_KEY_NUM_THREADS)))
+                {
+                    config.numThreads = std::stoul(loggerSection.at(LOG_INI_KEY_NUM_THREADS));
+                }
+                else
+                {
+                    config.numThreads = std::nullopt;
+                }
             }
             if(loggerSection.count(LOG_INI_KEY_ONLY_FILE_NAMES))
             {
-                config.onlyFileNames = (loggerSection.at(LOG_INI_KEY_ONLY_FILE_NAMES) == "true");
+                config.onlyFileNames = LogHelper::toLowerCase(loggerSection.at(LOG_INI_KEY_ONLY_FILE_NAMES)) == "true";
             }
             if(loggerSection.count(LOG_INI_KEY_MIN_LOG_LEVEL))
             {
-                config.minLogLevel = LogHelper::stringToLevel(loggerSection.at(LOG_INI_KEY_MIN_LOG_LEVEL));
+                if(LogHelper::stringToLevel(loggerSection.at(LOG_INI_KEY_MIN_LOG_LEVEL)) != LogLevel::Unknown)
+                {
+                    config.minLogLevel = LogHelper::stringToLevel(loggerSection.at(LOG_INI_KEY_MIN_LOG_LEVEL));
+                }
+                else
+                {
+                    config.minLogLevel = std::nullopt;
+                }
             }
             if(loggerSection.count(LOG_INI_KEY_USE_BATCH))
             {
-                config.useBatch = (loggerSection.at(LOG_INI_KEY_USE_BATCH) == "true");
+                config.useBatch = LogHelper::toLowerCase(loggerSection.at(LOG_INI_KEY_USE_BATCH)) == "true";
             }
             if(loggerSection.count(LOG_INI_KEY_BATCH_SIZE))
             {
-                config.batchSize = std::stoi(loggerSection.at(LOG_INI_KEY_BATCH_SIZE));
+                if(LogHelper::isNumeric(loggerSection.at(LOG_INI_KEY_BATCH_SIZE)))
+                {
+                    config.batchSize = std::stoi(loggerSection.at(LOG_INI_KEY_BATCH_SIZE));
+                }
+                else
+                {
+                    config.batchSize = std::nullopt;
+                }
             }
         }
         if(iniData.count(LOG_INI_SECTION_DATABASE))
@@ -142,7 +264,14 @@ namespace LogConfig
             }
             if(databaseSection.count(LOG_INI_KEY_DATABASE_PORT))
             {
-                config.databasePort = std::stoi(databaseSection.at(LOG_INI_KEY_DATABASE_PORT));
+                if(LogHelper::isNumeric(databaseSection.at(LOG_INI_KEY_DATABASE_PORT)))
+                {
+                    config.databasePort = std::stoi(databaseSection.at(LOG_INI_KEY_DATABASE_PORT));
+                }
+                else
+                {
+                    config.databasePort = std::nullopt;
+                }
             }
             if(databaseSection.count(LOG_INI_KEY_DATABASE_USER))
             {
@@ -161,7 +290,14 @@ namespace LogConfig
             }
             if(databaseSection.count(LOG_INI_KEY_DATABASE_TYPE))
             {
-                config.databaseType = DataBaseHelper::stringToDatabaseType(databaseSection.at(LOG_INI_KEY_DATABASE_TYPE));
+                try
+                {
+                    config.databaseType = DataBaseHelper::stringToDatabaseType(databaseSection.at(LOG_INI_KEY_DATABASE_TYPE));
+                }
+                catch(...)
+                {
+                    config.databaseType = std::nullopt;
+                }
             }
         }
 #ifdef USE_SOURCE_INFO
@@ -380,6 +516,340 @@ namespace LogConfig
             default:
                 throw std::runtime_error(ERR_MSG_UNSUPPORTED_DB);
         }
+    };
+
+    /**
+    * @brief Checks for potential SQL injection patterns in input string
+    * @param input The string to validate
+    * @return true if dangerous patterns detected, false otherwise
+    * @note Uses case-insensitive comparison via LogHelper::toLowerCase()
+    */
+    bool Config::containsSQLInjection(const std::string& input) const
+    {
+        const std::string lowerInput = LogHelper::toLowerCase(input);
+
+        for(const auto & pattern : dangerousSQLPatterns)
+        {
+            if(lowerInput.find(pattern) != std::string::npos)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    /**
+    * @brief Validates the entire configuration
+    * @return ValidateResult Contains validation status and error details:
+    * - success: true if all validations pass
+    * - missingParams: List of missing required parameters
+    * - invalidParams: List of invalid parameters with error messages
+    * @note This method combines results from all specific validators (name, database, etc.)
+    * @see validateName(), validateDatabase(), validateThreads()
+    * @see validateSource(), validateBatch(), validateLogLevel()
+    */
+    ValidateResult Config::validate() const
+    {
+        ValidateResult finalResult;
+
+        ValidateResult nameResult = validateName();
+        if(!nameResult.ok())
+        {
+            finalResult.merge(nameResult);
+        }
+
+        ValidateResult levelResult = validateLogLevel();
+        if(!levelResult.ok())
+        {
+            finalResult.merge(levelResult);
+        }
+
+        ValidateResult threadsResult = validateThreads();
+        if(!threadsResult.ok())
+        {
+            finalResult.merge(threadsResult);
+        }
+
+        ValidateResult batchResult = validateBatch();
+        if(!batchResult.ok())
+        {
+            finalResult.merge(batchResult);
+        }
+
+        ValidateResult databaseResult = validateDatabase();
+        if(!databaseResult.ok())
+        {
+            finalResult.merge(databaseResult);
+        }
+
+#ifdef USE_SOURCE_INFO
+        ValidateResult uuidResult = validateSource();
+        if(!uuidResult.ok())
+        {
+            finalResult.merge(uuidResult);
+        }
+#endif
+        return finalResult;
+    };
+
+    /**
+    * @brief Validates the entire configuration (static method)
+    * @return ValidateResult Contains validation status and error details:
+    * - success: true if all validations pass
+    * - missingParams: List of missing required parameters
+    * - invalidParams: List of invalid parameters with error messages
+    * @note This method combines results from all specific validators (name, database, etc.)
+    * @see validateName(), validateDatabase(), validateThreads()
+    * @see validateSource(), validateBatch(), validateLogLevel()
+    */
+    ValidateResult Config::validate(const Config& config)
+    {
+        return config.validate();
+    };
+
+    /**
+    * @brief Validates the logger name configuration
+    * @return ValidateResult Contains:
+    * - success: true if name is valid
+    * - missingParams: Contains "name" if empty/missing
+    * - invalidParams: Empty (no invalid state possible for name)
+    * @details Checks:
+    * - Name is not empty (if present)
+    * - Name meets length requirements (if any)
+    */
+    ValidateResult Config::validateName() const
+    {
+        ValidateResult result;
+        if(name && name->empty() || !name)
+        {
+            result.addMissing(tagLogger + std::string(LOG_INI_KEY_NAME));
+        }
+        return result;
+    };
+
+    /**
+    * @brief Validates database connection parameters
+    * @return ValidateResult Contains:
+    * - success: true if all database parameters are valid
+    * - missingParams: List of missing required database params
+    * - invalidParams: List of invalid database params with error details
+    * @details Checks:
+    * - Database type is supported
+    * - Required parameters for the database type are present
+    * - Port number is valid (0-65535)
+    * - Credentials are provided (if required)
+    * - Table name is specified
+    */
+    ValidateResult Config::validateDatabase() const
+    {
+        ValidateResult result;
+
+        if(!databaseType || !databaseName || !databaseTable
+                || databaseName->empty() || databaseTable->empty())
+        {
+            if(!databaseType)
+                result.addMissing(tagDatabase + std::string(LOG_INI_KEY_DATABASE_TYPE));
+
+            if(!databaseName || databaseName->empty())
+                result.addMissing(tagDatabase + std::string(LOG_INI_KEY_DATABASE_NAME));
+
+            if(!databaseTable || databaseTable->empty())
+                result.addMissing(tagDatabase + std::string(LOG_INI_KEY_DATABASE_TABLE));
+        }
+
+        if(databaseType && DataBaseHelper::isDataBaseServer( * databaseType)
+                || (!databaseHost) || (!databaseUser)
+                || (!databasePass) || (!databasePort)
+          )
+        {
+            if(!databaseHost || databaseHost->empty())
+                result.addMissing(tagDatabase + std::string(LOG_INI_KEY_DATABASE_HOST));
+
+            if(!databaseUser || databaseUser->empty())
+                result.addMissing(tagDatabase + std::string(LOG_INI_KEY_DATABASE_USER));
+
+            if(!databasePass || databasePass->empty())
+                result.addMissing(tagDatabase + std::string(LOG_INI_KEY_DATABASE_PASS));
+
+            if(!databasePort)
+                result.addMissing(tagDatabase + std::string(LOG_INI_KEY_DATABASE_PORT));
+
+            if(databasePort && * databasePort > LOG_MAX_PORT_NUM)
+                result.addInvalid(tagDatabase + std::string(LOG_INI_KEY_DATABASE_PORT),
+                                  std::string("Port number bigger than ") + std::to_string(LOG_MAX_PORT_NUM));
+            if(databasePort && * databasePort < LOG_MIN_PORT_NUM)
+                result.addInvalid(tagDatabase + std::string(LOG_INI_KEY_DATABASE_PORT),
+                                  std::string("Port number lesser than ") + std::to_string(LOG_MIN_PORT_NUM));
+        }
+
+        if(databaseType && !DataBaseHelper::isDataBaseSupported( * databaseType))
+        {
+            result.addInvalid(tagDatabase + std::string(LOG_INI_KEY_DATABASE_TYPE), "Requested database type "
+                              + DataBaseHelper::databaseTypeToString( * databaseType)
+                              + " not supported in this build");
+        }
+
+        auto validateSQLInjection = [ & ](const std::string& keyName, const std::optional<std::string> & value)
+        {
+            if(value && containsSQLInjection(value.value()))
+            {
+                result.addInvalid(tagDatabase + keyName, "Contains dangerous SQL pattern '" + value.value() + "'");
+            }
+        };
+
+        validateSQLInjection(LOG_INI_KEY_DATABASE_NAME, databaseName);
+        validateSQLInjection(LOG_INI_KEY_DATABASE_TABLE, databaseTable);
+        validateSQLInjection(LOG_INI_KEY_DATABASE_USER, databaseUser);
+
+        return result;
+    };
+
+    /**
+    * @brief Validates threading configuration
+    * @return ValidateResult Contains:
+    * - success: true if thread configuration is valid
+    * - missingParams: Empty (thread count has default value)
+    * - invalidParams: Contains error if thread count is out of valid range
+    * @details Checks:
+    * - Thread count is within allowed range (1-256)
+    * - Thread count is present if async mode is enabled
+    */
+    ValidateResult Config::validateThreads() const
+    {
+        ValidateResult result;
+
+        if(!syncMode)
+        {
+            result.addMissing(tagLogger + std::string(LOG_INI_KEY_SYNC_MODE));
+        }
+        else
+        {
+            if(!syncMode.value() && numThreads
+                    && * numThreads < LOG_NUM_THREADS_MIN
+                    || * numThreads > LOG_NUM_THREADS_MAX)
+            {
+                std::ostringstream detail;
+                detail << "Threads count could not be "
+                       << (numThreads < 1
+                           ? "lesser than " + std::to_string(LOG_NUM_THREADS_MIN)
+                           : "bigger than " + std::to_string(LOG_NUM_THREADS_MAX))
+                       << " (" << * numThreads << ")";
+                result.addInvalid(tagLogger + std::string(LOG_INI_KEY_NUM_THREADS), detail.str());
+            }
+        }
+        return result;
+    };
+
+    /**
+    * @brief Validates batch configuration
+    * @return ValidateResult Contains:
+    * - success: true if batch configuration is valid
+    * - missingParams: Empty (batch size has default value)
+    * - invalidParams: Contains error if batch size is out of valid range
+    * @details Checks:
+    * - Batch size is within allowed range for database type (1-10000 depends on database type)
+    * - Batch size is present if async mode is enabled
+    * @see getMaxBatchSize()
+    * @see DB_MAX_BATCH_SQLITE, DB_MAX_BATCH_MYSQL, DB_MAX_BATCH_POSTGRESQL
+    */
+    ValidateResult Config::validateBatch() const
+    {
+        ValidateResult result;
+
+        if(!useBatch)
+        {
+            result.addMissing(tagLogger + std::string(LOG_INI_KEY_USE_BATCH));
+        }
+
+        if(useBatch && useBatch.value())
+        {
+            if(!batchSize)
+            {
+                result.addMissing(tagLogger + std::string(LOG_INI_KEY_BATCH_SIZE));
+            }
+            else
+            {
+                if(databaseType)
+                {
+                    if( * batchSize < 1 || * batchSize > DataBaseHelper::getMaxBatchSize( * databaseType))
+                    {
+                        std::ostringstream detail;
+                        detail << "Batch size for "
+                               << DataBaseHelper::databaseTypeToString( * databaseType)
+                               << " could not be "
+                               << (batchSize < DB_MIN_BATCH_SIZE
+                                   ? "lesser than " + std::to_string(DB_MIN_BATCH_SIZE)
+                                   : "bigger than " + std::to_string(DataBaseHelper::getMaxBatchSize( * databaseType)))
+                               << " (" << * batchSize << ")";
+                        result.addInvalid(tagLogger + std::string(LOG_INI_KEY_BATCH_SIZE), detail.str());
+                    }
+                }
+            }
+        }
+        return result;
+    };
+
+    /**
+    * @brief Validates the minimum log level configuration
+    * @return ValidateResult Contains validation status with:
+    * - success: true if log level is properly configured
+    * - missingParams: Contains log level key if not specified
+    * - invalidParams: Empty (no invalid state possible for log level)
+    * @details Checks:
+    * - Minimum log level is specified in configuration
+    * - Log level value is within allowed range (implied by LogLevel enum)
+    * @note The actual validity of the log level value is ensured by
+    * LogHelper::stringToLevel() during configuration loading.
+    * This method only verifies presence of the setting.
+    * @see LOG_INI_KEY_MIN_LOG_LEVEL
+    * @see LogLevel
+    * @see LogHelper::stringToLevel()
+    */
+    ValidateResult Config::validateLogLevel() const
+    {
+        ValidateResult result;
+
+        if(!minLogLevel)
+        {
+            result.addMissing(tagLogger + std::string(LOG_INI_KEY_MIN_LOG_LEVEL));
+        }
+        return result;
+    }
+
+#ifdef USE_SOURCE_INFO
+    /**
+    * @brief Validates source UUID configuration (if enabled)
+    * @return ValidateResult Contains:
+    * - success: true if UUID is valid
+    * - missingParams: Contains "uuid" if missing when required
+    * - invalidParams: Contains "uuid" if format is invalid
+    * @details Checks:
+    * - UUID is present (if source info is enabled)
+    * - UUID follows proper format (if specified)
+    * @note Only active when USE_SOURCE_INFO is defined
+    */
+    ValidateResult Config::validateSource() const
+    {
+        ValidateResult result;
+
+        if(!sourceName || sourceName->empty())
+        {
+            result.addMissing(tagSource + std::string(LOG_INI_KEY_SOURCE_NAME));
+        }
+
+        if(!sourceUuid)
+        {
+            result.addMissing(tagSource + std::string(LOG_INI_KEY_SOURCE_UUID));
+        }
+
+        if(sourceUuid && !uuids::uuid::is_valid_uuid( * sourceUuid))
+        {
+            sourceUuid->empty()
+            ? result.addMissing(tagSource + std::string(LOG_INI_KEY_SOURCE_UUID))
+                    : result.addInvalid(tagSource + std::string(LOG_INI_KEY_SOURCE_UUID), "UUID is not correct: " + * sourceUuid);
+        }
+#endif
+        return result;
     };
 };
 
