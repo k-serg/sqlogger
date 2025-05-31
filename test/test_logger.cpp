@@ -1326,7 +1326,7 @@ int main(int argc, char* argv[])
             break;
 
         case DataBaseType::SQLite:
-            dbTypeString << " database" << std::endl << "Database file: " << TEST_DATABASE_FILE;
+            dbTypeString << " database" << std::endl << "Database file: " << config.databaseName.value();
             break;
 
         case DataBaseType::MySQL:

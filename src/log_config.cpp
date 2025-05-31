@@ -658,8 +658,8 @@ namespace LogConfig
         }
 
         if(databaseType && DataBaseHelper::isDataBaseServer( * databaseType)
-                || (!databaseHost) || (!databaseUser)
-                || (!databasePass) || (!databasePort)
+                && (!databaseHost || !databaseUser
+                    || !databasePass || !databasePort)
           )
         {
             if(!databaseHost || databaseHost->empty())
