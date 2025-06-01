@@ -19,11 +19,30 @@
 
 #include "database_helper.h"
 
+/**
+ * @brief Checks if the database type is an embedded database
+ * @details Embedded databases run in the same process as the application
+ * and don't require a separate server process. Examples include SQLite.
+ * @param dbType The database type to check
+ * @return true If the database is embedded (runs in-process)
+ * @return false If the database requires a server
+ * @see isDataBaseServer()
+ */
 bool DataBaseHelper::isDataBaseEmbedded(const DataBaseType& dbType)
 {
     return !isDataBaseServer(dbType);
 }
 
+/**
+ * @brief Checks if the database type requires a server
+ * @details Server databases require a separate database server process
+ * and network communication. Examples include MySQL, PostgreSQL and MongoDB.
+ * @param dbType The database type to check
+ * @return true If the database requires a server
+ * @return false If the database is embedded
+ * @throw std::invalid_argument If unsupported database type is provided
+ * @see isDataBaseEmbedded()
+ */
 bool DataBaseHelper::isDataBaseServer(const DataBaseType& dbType)
 {
     switch(dbType)
