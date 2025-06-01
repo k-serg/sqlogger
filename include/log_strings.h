@@ -46,6 +46,12 @@
 #define ERR_MSG_DB_TYPE_NOT_SPECIFIED "Database type not specified"
 #define ERR_MSG_LOGGER_NAME_NOT_FOUND "Logger name not found: "
 #define ERR_MSG_AVAILABLE_LOGGERS "Available loggers: "
+#define ERR_MSG_UUID_NOT_CORRECT "UUID is not correct: "
+#define ERR_MSG_DANGEROUS_SQL_PAT "Contains dangerous SQL pattern"
+#define ERR_MSG_NOT_SUPPORTED_BUILD "not supported in this build"
+#define ERR_MSG_MISSING_PARAMS "Missing params: "
+#define ERR_MSG_INVALID_PARAMS "Invalid params: "
+#define ERR_MSG_INVALID_OPERATOR "Invalid filter operator: "
 
 #ifdef USE_AES
     #define ERR_MSG_CRYPTO_ENC_INIT_FAILED "Encryption init failed"

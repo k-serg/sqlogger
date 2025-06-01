@@ -43,6 +43,14 @@ LogEntryList LogReader::getLogsByFilters(const std::vector<Filter> & filters,
         const int limit,
         const int offset)
 {
+    for(const auto & filter : filters)
+    {
+        if(!filter.isAllowedOp())
+        {
+            throw std::invalid_argument(ERR_MSG_INVALID_OPERATOR + filter.op);
+        }
+    }
+
     std::vector<std::string> fields =
     {
         FIELD_LOG_ID,

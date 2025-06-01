@@ -92,7 +92,7 @@
 #define ENTRY_DELIMITER ","
 #define TIMESTAMP_FMT "%Y-%m-%d %H:%M:%S"
 
-constexpr char* ALLOWED_FILTER_OP[] = { "=", ">", "<", ">=", "<=", "!=" }; /**< List of allowed operators for Filter structure. */
+constexpr const char* ALLOWED_FILTER_OP[] = { "=", ">", "<", ">=", "<=", "!=" }; /**< List of allowed operators for Filter structure. */
 
 #ifdef USE_SOURCE_INFO
 /**
@@ -236,17 +236,13 @@ namespace LogHelper
         switch(level)
         {
             case LogLevel::Trace:
-                return static_cast<int>(LogLevel::Trace);
             case LogLevel::Debug:
-                return static_cast<int>(LogLevel::Debug);
             case LogLevel::Info:
-                return static_cast<int>(LogLevel::Info);
             case LogLevel::Warning:
-                return static_cast<int>(LogLevel::Warning);
+                ;
             case LogLevel::Error:
-                return static_cast<int>(LogLevel::Error);
             case LogLevel::Fatal:
-                return static_cast<int>(LogLevel::Fatal);
+                return static_cast<int>(level);
             default:
                 return static_cast<int>(LogLevel::Unknown);
         }
@@ -385,15 +381,41 @@ struct Filter
     std::string value; /**< The value to compare against. */
 
     /**
-     * @brief Checks if the operator is allowed.
-     * @return True if the operator is allowed, false otherwise.
-     */
+    * @brief Checks if the operator is allowed.
+    * @return True if the operator is allowed, false otherwise.
+    * @throws std::invalid_argument If operator is empty
+    */
     bool isAllowedOp() const
     {
-        for(auto const & alowedOp : ALLOWED_FILTER_OP)
+        if(op.empty())
         {
-            if(alowedOp == op) return true;
+            throw std::invalid_argument("Filter operator cannot be empty");
         }
+
+        for(const auto & allowedOp : ALLOWED_FILTER_OP)
+        {
+            if(op == allowedOp)
+            {
+                return true;
+            }
+        }
+
+        if(op.find("LIKE") != std::string::npos)
+        {
+            if(op == "LIKE" || op == "NOT LIKE")
+            {
+                return true;
+            }
+        }
+
+        if(op.find("IN") != std::string::npos)
+        {
+            if(op == "IN" || op == "NOT IN")
+            {
+                return true;
+            }
+        }
+
         return false;
     };
 

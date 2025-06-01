@@ -88,14 +88,14 @@ namespace LogConfig
 
         if(!missingParams.empty())
         {
-            ss << "Missing params: " << std::endl;
+            ss << ERR_MSG_MISSING_PARAMS << std::endl;
             ss << StringHelper::join(missingParams, ", ");
             ss << std::endl;
         }
 
         if(!invalidParams.empty())
         {
-            ss << "Invalid params:\n";
+            ss << ERR_MSG_INVALID_PARAMS << std::endl;
             for(const auto & [param, detail] : invalidParams)
             {
                 ss << param << ": " << detail << std::endl;
@@ -429,7 +429,7 @@ namespace LogConfig
     {
         if(!config.databaseType.has_value())
         {
-            throw std::runtime_error("Database type is not specified in config");
+            throw std::runtime_error(ERR_MSG_DB_TYPE_NOT_SPECIFIED);
         }
 
         switch(config.databaseType.value())
@@ -480,19 +480,6 @@ namespace LogConfig
 
             case DataBaseType::MongoDB:
             {
-                //std::vector<std::string> parts;
-                //if(config.databaseHost.has_value())
-                //    parts.emplace_back("host=" + config.databaseHost.value());
-                //if(config.databaseUser.has_value())
-                //    parts.emplace_back("user=" + config.databaseUser.value());
-                //if(config.databasePass.has_value())
-                //    parts.emplace_back("password=" + config.databasePass.value());
-                //if(config.databaseName.has_value())
-                //    parts.emplace_back("dbname=" + config.databaseName.value());
-                //if(config.databasePort.has_value())
-                //    parts.emplace_back("port=" + std::to_string(config.databasePort.value()));
-
-                //return StringHelper::join(parts, ";");
                 std::string uri = "mongodb://";
 
                 if(config.databaseUser.has_value() && config.databasePass.has_value())
@@ -500,14 +487,14 @@ namespace LogConfig
                     uri += config.databaseUser.value() + ":" + config.databasePass.value() + "@";
                 }
 
-                uri += config.databaseHost.value_or("localhost");
+                uri += config.databaseHost.value();
 
                 if(config.databasePort.has_value())
                 {
                     uri += ":" + std::to_string(config.databasePort.value());
                 }
 
-                uri += "/" + config.databaseName.value_or("test");
+                uri += "/" + config.databaseName.value();
 
                 return uri;
             }
@@ -686,14 +673,16 @@ namespace LogConfig
         {
             result.addInvalid(tagDatabase + std::string(LOG_INI_KEY_DATABASE_TYPE), "Requested database type "
                               + DataBaseHelper::databaseTypeToString( * databaseType)
-                              + " not supported in this build");
+                              + " "
+                              + ERR_MSG_NOT_SUPPORTED_BUILD);
         }
 
         auto validateSQLInjection = [ & ](const std::string& keyName, const std::optional<std::string> & value)
         {
             if(value && containsSQLInjection(value.value()))
             {
-                result.addInvalid(tagDatabase + keyName, "Contains dangerous SQL pattern '" + value.value() + "'");
+                result.addInvalid(tagDatabase + keyName, ERR_MSG_DANGEROUS_SQL_PAT
+                                  + std::string("'") + value.value() + std::string("'"));
             }
         };
 
@@ -846,7 +835,7 @@ namespace LogConfig
         {
             sourceUuid->empty()
             ? result.addMissing(tagSource + std::string(LOG_INI_KEY_SOURCE_UUID))
-                    : result.addInvalid(tagSource + std::string(LOG_INI_KEY_SOURCE_UUID), "UUID is not correct: " + * sourceUuid);
+                    : result.addInvalid(tagSource + std::string(LOG_INI_KEY_SOURCE_UUID), ERR_MSG_UUID_NOT_CORRECT + * sourceUuid);
         }
 #endif
         return result;
