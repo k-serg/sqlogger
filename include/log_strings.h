@@ -52,6 +52,7 @@
 #define ERR_MSG_MISSING_PARAMS "Missing params: "
 #define ERR_MSG_INVALID_PARAMS "Invalid params: "
 #define ERR_MSG_INVALID_OPERATOR "Invalid filter operator: "
+#define ERR_MSG_FILTER_OP_EMPTY "Filter operator cannot be empty"
 
 #ifdef USE_AES
     #define ERR_MSG_CRYPTO_ENC_INIT_FAILED "Encryption init failed"

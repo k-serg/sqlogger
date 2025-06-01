@@ -92,7 +92,13 @@
 #define ENTRY_DELIMITER ","
 #define TIMESTAMP_FMT "%Y-%m-%d %H:%M:%S"
 
-constexpr const char* ALLOWED_FILTER_OP[] = { "=", ">", "<", ">=", "<=", "!=" }; /**< List of allowed operators for Filter structure. */
+constexpr const char* ALLOWED_FILTER_OP[] =
+{
+    "=", ">", "<", ">=", "<=", "!=", "<>",
+    "LIKE", "NOT LIKE",
+    "IN", "NOT IN",
+    "IS NULL", "IS NOT NULL"
+};
 
 #ifdef USE_SOURCE_INFO
 /**
@@ -389,7 +395,7 @@ struct Filter
     {
         if(op.empty())
         {
-            throw std::invalid_argument("Filter operator cannot be empty");
+            throw std::invalid_argument(ERR_MSG_FILTER_OP_EMPTY);
         }
 
         for(const auto & allowedOp : ALLOWED_FILTER_OP)
@@ -399,23 +405,6 @@ struct Filter
                 return true;
             }
         }
-
-        if(op.find("LIKE") != std::string::npos)
-        {
-            if(op == "LIKE" || op == "NOT LIKE")
-            {
-                return true;
-            }
-        }
-
-        if(op.find("IN") != std::string::npos)
-        {
-            if(op == "IN" || op == "NOT IN")
-            {
-                return true;
-            }
-        }
-
         return false;
     };
 
