@@ -79,14 +79,14 @@ Customize the build using these options:
   cmake .. -DBUILD_SHARED_LIBS=OFF
   ```
   
-- `USE_SYSTEM_SQLITE`: Use system SQLite 3 instead of bundled SQLite 3 amalgamation (default OFF)
+- `SQLG_USE_SYSTEM_SQLITE`: Use system SQLite 3 instead of bundled SQLite 3 amalgamation (default OFF)
   ```bash
-  cmake .. -DUSE_SYSTEM_SQLITE=ON
+  cmake .. -DSQLG_USE_SYSTEM_SQLITE=ON
   ```
 
-- `BUILD_TEST`: Build tests (default ON)
+- `SQLG_BUILD_TEST`: Build tests (default ON)
   ```bash
-  cmake .. -DBUILD_TEST=OFF
+  cmake .. -DSQLG_BUILD_TEST=OFF
   ```
 
 - `CMAKE_BUILD_TYPE`: Set build type (Debug/Release)
@@ -94,26 +94,26 @@ Customize the build using these options:
   cmake .. -DCMAKE_BUILD_TYPE=Debug
   ```
 
-- `USE_SOURCE_INFO`: Enable source tracking (default OFF)
+- `SQLG_USE_SOURCE_INFO`: Enable source tracking (default OFF)
   ```bash
-  cmake .. -DUSE_SOURCE_INFO=ON
+  cmake .. -DSQLG_USE_SOURCE_INFO=ON
   ```
 
-- `BUILD_DOCS`: Enable html documentation build (default OFF)
+- `SQLG_BUILD_DOCS`: Enable html documentation build (default OFF)
   ```bash
-  cmake .. -DBUILD_DOCS=ON
+  cmake .. -DSQLG_BUILD_DOCS=ON
   ```
-- `USE_AES`: Enable AES config password encryption. By default password encryption use XOR. (default OFF)
+- `SQLG_USE_AES`: Enable AES config password encryption. By default password encryption use XOR. (default OFF)
   ```bash
-  cmake .. -DUSE_AES=ON
+  cmake .. -DSQLG_USE_AES=ON
   ```
-- `USE_MYSQL`: Enable MySQL support (depends on libmysqlclient-dev on Linux and MySQL Server 8.0 on Windows)
+- `SQLG_USE_MYSQL`: Enable MySQL support (depends on libmysqlclient-dev on Linux and MySQL Server 8.0 on Windows)
   ```bash
-  cmake .. -DUSE_MYSQL=ON
+  cmake .. -DSQLG_USE_MYSQL=ON
   ```
-- `USE_POSTGRESQL`: Enable PostgreSQL support (depends on libpq-dev on Linux and PostgreSQL on Windows)
+- `SQLG_USE_POSTGRESQL`: Enable PostgreSQL support (depends on libpq-dev on Linux and PostgreSQL on Windows)
   ```bash
-  cmake .. -DUSE_POSTGRESQL=ON
+  cmake .. -DSQLG_USE_POSTGRESQL=ON
   ```
 - 
 ### Installation
@@ -162,7 +162,7 @@ LogConfig::Config getConfig() const;
 struct LogEntry
 {
     int id;  // Unique log entry ID
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     int sourceId;  // Associated source ID if enabled
 #endif
     std::string timestamp;  // When the log was created
@@ -172,7 +172,7 @@ struct LogEntry
     std::string file;       // Source file where logged
     int line;               // Line number where logged
     std::string threadId;   // Thread ID that created log
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     std::string uuid;       // Source UUID if enabled
     std::string sourceName; // Source name if enabled
 #endif
@@ -229,7 +229,7 @@ LogEntryList getLogsByFilters(const std::vector<Filter>& filters,
                              int limit = -1,
                              int offset = -1);
 
-// Source-specific log retrieval (when USE_SOURCE_INFO enabled)
+// Source-specific log retrieval (when SQLG_USE_SOURCE_INFO enabled)
 LogEntryList getLogsBySourceId(const int& sourceId,
                               const int limit = -1,
                               const int offset = -1);
@@ -251,7 +251,7 @@ struct Filter
         Function,      // Filter by function name
         ThreadId,      // Filter by thread ID
         TimestampRange // Filter by time range
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
         , SourceId     // Filter by source ID
 #endif
     };
@@ -263,7 +263,7 @@ struct Filter
 };
 ```
 
-**Source Management (when USE_SOURCE_INFO enabled):**
+**Source Management (when SQLG_USE_SOURCE_INFO enabled):**
 
 **Source Info Structure:**
 ```cpp
@@ -337,8 +337,8 @@ struct Config
     std::optional<std::string> databasePass;  // Password
     std::optional<DataBaseType> databaseType; // Database backend type
     
-    // Source tracking (when USE_SOURCE_INFO enabled)
-#ifdef USE_SOURCE_INFO
+    // Source tracking (when SQLG_USE_SOURCE_INFO enabled)
+#ifdef SQLG_USE_SOURCE_INFO
     std::optional<std::string> sourceUuid;    // Source UUID
     std::optional<std::string> sourceName;    // Source name
 #endif
@@ -383,7 +383,7 @@ Table = logs
 # User = root
 # Pass = encrypted_password
 
-[Source]  # When USE_SOURCE_INFO enabled
+[Source]  # When SQLG_USE_SOURCE_INFO enabled
 Uuid = 550e8400-e29b-41d4-a716-446655440000
 Name = MyApplication
 ```
@@ -407,7 +407,7 @@ private:
     ValidateResult validateThreads() const;
     ValidateResult validateBatch() const;
     ValidateResult validateLogLevel() const;
-    #ifdef USE_SOURCE_INFO
+    #ifdef SQLG_USE_SOURCE_INFO
     ValidateResult validateSource() const;
     #endif
 ```
@@ -554,14 +554,14 @@ int main() {
     
     // Get statistics
     auto stats = logger.getStats();
-    std::cout << Logger::getFormattedStats(stats);
+    std::cout << SQLogger::getFormattedStats(stats);
 
     // Retrieve logs
     auto allLogs = logger.getAllLogs();
     auto errorLogs = logger.getLogsByLevel(LogLevel::Error);
 
     // Export to CSV
-    Logger::exportTo("logs.csv", LogExport::Format::CSV, allLogs);
+    SQLogger::exportTo("logs.csv", LogExport::Format::CSV, allLogs);
 
     // Clean up
     LogManager::getInstance().removeLogger("main");

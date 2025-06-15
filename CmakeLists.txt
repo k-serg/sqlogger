@@ -9,7 +9,7 @@ project(${PROJECT_NAME})
 
 # Set the version numbers for the project
 set(SQLOGGER_VERSION_MAJOR 1)
-set(SQLOGGER_VERSION_MINOR 9)
+set(SQLOGGER_VERSION_MINOR 10)
 set(SQLOGGER_VERSION_BUILD 0)
 set(SQLOGGER_VERSION_FULL ${SQLOGGER_VERSION_MAJOR}.${SQLOGGER_VERSION_MINOR}.${SQLOGGER_VERSION_BUILD})
 set(SQLOGGER_DESCRIPTION "SQLogger is a fast, lightweight logging library that uses SQLite (optional MySQL and PostgreSQL) as a backend.")
@@ -24,37 +24,22 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Include the current directory in the include path
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-# Add the include directory for the project
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
-
 # Define CMake options
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
-option(USE_SYSTEM_SQLITE "Use system SQLite" OFF)
-option(BUILD_TEST "Build test application" ON)
-option(USE_MYSQL "Enable MySQL support" OFF)
-option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
-#option(USE_MONGODB "Enable MongoDB support" OFF)
-option(BUILD_DOC "Build documentation using Doxygen" OFF)
-option(USE_SOURCE_INFO "Enable SOURCE INFO support" OFF)
-option(USE_AES "Enable AES encription" OFF)
-
+option(SQLG_USE_SYSTEM_SQLITE "Use system SQLite" OFF)
+option(SQLG_BUILD_TEST "Build test application" ON)
+option(SQLG_USE_MYSQL "Enable MySQL support" OFF)
+option(SQLG_USE_POSTGRESQL "Enable PostgreSQL support" OFF)
+#option(SQLG_USE_MONGODB "Enable MongoDB support" OFF)
+option(SQLG_BUILD_DOC "Build documentation using Doxygen" OFF)
+option(SQLG_USE_SOURCE_INFO "Enable SOURCE INFO support" OFF)
+option(SQLG_USE_AES "Enable AES encription" OFF)
+#option(SQLG_USE_REST "Enable REST transport interface" OFF)
+option(SQLG_USE_EXTERNAL_JSON_PARSER "Enable external JSON parser" OFF)
 
 # Configure symbol export for Windows
 if (WIN32)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-endif()
-
-# Find and configure SQLite3 library
-if (USE_SYSTEM_SQLITE)
-    find_package(SQLite3 REQUIRED)
-    if (SQLite3_FOUND)
-        message(STATUS "SQLite3 found: ${SQLite3_VERSION} ${SQLite3_INCLUDE_DIR}")
-        include_directories(${SQLite3_INCLUDE_DIR})
-    endif()
-else()
-    # Use the bundled SQLite amalgamation
-    add_subdirectory(./3rdparty/sqlite-amalgamation)
-    message(STATUS "Use bundled SQLite3 amalgamation")
 endif()
 
 if (BUILD_SHARED_LIBS)
@@ -63,29 +48,132 @@ else()
     set(OPENSSL_USE_STATIC_LIBS TRUE) # Since CMake 3.4
 endif()
 
-if (USE_AES)
-    find_package(OpenSSL REQUIRED)
-    if (OpenSSL_FOUND)
-        message(STATUS "AES Support: ON")
-        message(STATUS "OpenSSL found: ${OPENSSL_VERSION} ${OPENSSL_ROOT_DIR} ${OPENSSL_INCLUDE_DIR} ${OPENSSL_LIBRARIES}")
-        include_directories(${OPENSSL_INCLUDE_DIR})
-    else()
-        message(FATAL_ERROR "OpenSSL NOT found")
-    endif()
+# Define the list of header files
+set(HEADERS
+    "./include/sqlogger/logger.h"
+    "./include/sqlogger/log_manager.h"
+    "./include/sqlogger/log_entry.h"
+    "./include/sqlogger/log_helper.h"
+    "./include/sqlogger/log_config.h"
+    "./include/sqlogger/log_crypto.h"
+
+    "./include/sqlogger/database/database_interface.h"
+    "./include/sqlogger/database/database_factory.h"
+    "./include/sqlogger/database/query_builder.h"
+    "./include/sqlogger/database/database_schema.h"
+    "./include/sqlogger/database/sql_builder.h"
+    "./include/sqlogger/database/database_helper.h"
+
+    "./include/sqlogger/database/backends/sqlite_database.h"
+    "./include/sqlogger/database/backends/mock_database.h"
+
+    "./include/sqlogger/internal/log_writer.h"
+    "./include/sqlogger/internal/log_reader.h"
+
+    "./include/sqlogger/internal/thread_pool.h"
+    "./include/sqlogger/internal/log_serializer.h"
+    "./include/sqlogger/internal/log_export.h"
+    "./include/sqlogger/internal/fs_helper.h"
+    "./include/sqlogger/internal/ini_parser.h"
+    "./include/sqlogger/internal/log_strings.h"
+    "./include/sqlogger/internal/base64.h"
+
+    "./include/sqlogger/transport/transport_interface.h"
+    "./include/sqlogger/transport/transport_factory.h"
+    "./include/sqlogger/transport/transport_helper.h"
+)
+
+# Define the list of source files
+set(SOURCES
+    "./src/sqlogger/logger.cpp"
+    "./src/sqlogger/log_manager.cpp"
+    "./src/sqlogger/log_helper.cpp"
+    "./src/sqlogger/log_config.cpp"
+    "./src/sqlogger/log_crypto.cpp"
+
+    "./src/sqlogger/database/database_factory.cpp"
+    "./src/sqlogger/database/query_builder.cpp"
+    "./src/sqlogger/database/database_schema.cpp"
+    "./src/sqlogger/database/sql_builder.cpp"
+    "./src/sqlogger/database/database_helper.cpp"
+
+    "./src/sqlogger/database/backends/sqlite_database.cpp"
+    "./src/sqlogger/database/backends/mock_database.cpp"
+
+    "./src/sqlogger/internal/log_writer.cpp"
+    "./src/sqlogger/internal/log_reader.cpp"
+
+    "./src/sqlogger/internal/thread_pool.cpp"
+    "./src/sqlogger/internal/log_serializer.cpp"
+    "./src/sqlogger/internal/log_export.cpp"
+    "./src/sqlogger/internal/fs_helper.cpp"
+    "./src/sqlogger/internal/ini_parser.cpp"
+    "./src/sqlogger/internal/base64.cpp"
+
+    "./src/sqlogger/transport/transport_factory.cpp"
+    "./src/sqlogger/transport/transport_helper.cpp"
+)
+
+if (SQLG_USE_REST)
+    list(APPEND HEADERS "./include/sqlogger/transport/backends/rest_transport.h")
+    list(APPEND SOURCES "./src/sqlogger/transport/backends/rest_transport.cpp")
 endif()
 
-if(USE_SOURCE_INFO)
+# Add MySQL header and source files if SQLG_USE_MYSQL is enabled
+if (SQLG_USE_MYSQL)
+    list(APPEND HEADERS "./include/sqlogger/database/backends/mysql_database.h")
+    list(APPEND SOURCES "./src/sqlogger/database/backends/mysql_database.cpp")
+endif()
+
+# Add PostgreSQL header and source files if SQLG_USE_POSTGRESQL is enabled
+if (SQLG_USE_POSTGRESQL)
+    list(APPEND HEADERS "./include/sqlogger/database/backends/postgresql_database.h")
+    list(APPEND SOURCES "./src/sqlogger/database/backends/postgresql_database.cpp")
+endif()
+
+# Add MongoDB header and source files if SQLG_USE_MONGODB is enabled
+if (SQLG_USE_MONGODB)
+    list(APPEND HEADERS "./include/sqlogger/database/backends/mongodb_database.h")
+    list(APPEND SOURCES "./src/sqlogger/database/backends/mongodb_database.cpp")
+    list(APPEND HEADERS "./include/sqlogger/database/document_builder.h")
+    list(APPEND SOURCES "./src/sqlogger/database/document_builder.cpp")
+endif()
+
+# Create the library (shared or static based on BUILD_SHARED_LIBS)
+if (BUILD_SHARED_LIBS)
+    add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES})
+else()
+    add_library(${PROJECT_NAME} STATIC ${HEADERS} ${SOURCES})
+endif()
+
+if (SQLG_USE_EXTERNAL_JSON_PARSER)
+    add_subdirectory(./3rdparty/json)
+    message(STATUS "Use external JSON parser")
+endif()
+
+if(SQLG_USE_SOURCE_INFO)
+    add_subdirectory(./3rdparty/stduuid)
     message(STATUS "Source Info: ON")
 else()
     message(STATUS "Source Info: OFF")
 endif()
 
-if(USE_SOURCE_INFO)
-    add_subdirectory(./3rdparty/stduuid)
+# Find and configure SQLite3 library
+if (SQLG_USE_SYSTEM_SQLITE)
+    find_package(SQLite3 REQUIRED)
+    if (SQLite3_FOUND)
+        message(STATUS "SQLite3 found: ${SQLite3_VERSION} ${SQLite3_INCLUDE_DIR}")
+        target_include_directories(${PROJECT_NAME} PRIVATE ${SQLite3_INCLUDE_DIR})
+    endif()
+else()
+    # Use the bundled SQLite amalgamation
+    add_subdirectory(./3rdparty/sqlite-amalgamation #EXCLUDE_FROM_ALL
+    )
+    message(STATUS "Use bundled SQLite3 amalgamation")
 endif()
 
-# Find and configure MySQL library (if USE_MYSQL is enabled)
-if (USE_MYSQL)
+# Find and configure MySQL library (if SQLG_USE_MYSQL is enabled)
+if (SQLG_USE_MYSQL)
     # Platform-specific paths for MySQL
     if (WIN32 AND MSVC)
         # Paths for Windows
@@ -104,7 +192,7 @@ if (USE_MYSQL)
             set(MYSQL_LIBRARY "/usr/lib/x86_64-linux-gnu/libmysqlclient.a")
         endif()
     else()
-         message(FATAL_ERROR "MySQL build for this platform not supported jet. Set USE_MYSQL option to OFF.")
+         message(FATAL_ERROR "MySQL build for this platform not supported jet. Set SQLG_USE_MYSQL option to OFF.")
     endif()
 
     # Check if MySQL headers and library exist
@@ -118,25 +206,60 @@ if (USE_MYSQL)
     endif()
 endif()
 
-# Find and configure PostgreSQL library (if USE_POSTGRESQL is enabled)
-if (USE_POSTGRESQL)
+if (SQLG_USE_REST)
+    add_subdirectory(./3rdparty/drogon)
+    message(STATUS "Use bundled Drogon")
+   # find_package(Drogon REQUIRED)
+   # if (Drogon_FOUND)
+   #     message(STATUS "Drogon found: ${Drogon_VERSION} ${Drogon_INCLUDE_DIRS} ${Drogon_LIBRARIES}")
+   #     target_include_directories(${PROJECT_NAME} PRIVATE ${Drogon_INCLUDE_DIRS})
+   # else()
+   #     message(FATAL_ERROR "Drogon NOT found")
+   # endif()
+endif()
+
+if (SQLG_USE_REST)
+    #add_subdirectory(./3rdparty/jsoncpp)
+    #message(STATUS "Use bundled JsonCpp")
+    find_package(JSONCPP REQUIRED)
+    if (JSONCPP_FOUND)
+        message(STATUS "JsonCpp found: ${JSONCPP_VERSION} ${JSONCPP_INCLUDE_DIRS} ${JSONCPP_LIBRARIES}")
+        target_include_directories(${PROJECT_NAME} PRIVATE ${JSONCPP_INCLUDE_DIRS})
+    else()
+        message(FATAL_ERROR "JsonCpp NOT found")
+    endif()
+endif()
+
+if (SQLG_USE_AES)
+    find_package(OpenSSL REQUIRED)
+    if (OpenSSL_FOUND)
+        message(STATUS "AES Support: ON")
+        message(STATUS "OpenSSL found: ${OPENSSL_VERSION} ${OPENSSL_ROOT_DIR} ${OPENSSL_INCLUDE_DIR} ${OPENSSL_LIBRARIES}")
+        target_include_directories(${PROJECT_NAME} PRIVATE ${OPENSSL_INCLUDE_DIR})
+    else()
+        message(FATAL_ERROR "OpenSSL NOT found")
+    endif()
+endif()
+
+# Find and configure PostgreSQL library (if SQLG_USE_POSTGRESQL is enabled)
+if (SQLG_USE_POSTGRESQL)
     find_package(PostgreSQL REQUIRED)
     if (PostgreSQL_FOUND)
         message(STATUS "PostgreSQL found: ${PostgreSQL_VERSION_STRING} ${PostgreSQL_INCLUDE_DIRS} ${PostgreSQL_LIBRARIES}")
-        include_directories(${PostgreSQL_INCLUDE_DIRS})
+        target_include_directories(${PROJECT_NAME} PRIVATE ${PostgreSQL_INCLUDE_DIRS})
     else()
         message(FATAL_ERROR "PostgreSQL not found. Please install PostgreSQL development libraries.")
     endif()
 endif()
 
-# Find and configure MongoDB library (if USE_MONGODB is enabled)
-if (USE_MONGODB)
+# Find and configure MongoDB library (if SQLG_USE_MONGODB is enabled)
+if (SQLG_USE_MONGODB)
 #    find_package(libmongoc-1.0 REQUIRED)
 #    find_package(libbson-1.0 REQUIRED)
 #    if (libmongoc-1.0_FOUND AND libbson-1.0_FOUND)
 #        message(STATUS "MongoDB C driver found: ${LIBMONGOC_VERSION} ${LIBMONGOC_INCLUDE_DIRS} ${LIBMONGOC_LIBRARIES}")
 #        message(STATUS "BSON library found: ${LIBBSON_VERSION} ${LIBBSON_INCLUDE_DIRS} ${LIBBSON_LIBRARIES}")
-#        include_directories(${LIBMONGOC_INCLUDE_DIRS} ${LIBBSON_INCLUDE_DIRS})
+#        target_include_directories(${PROJECT_NAME} PRIVATE ${LIBMONGOC_INCLUDE_DIRS} ${LIBBSON_INCLUDE_DIRS})
 #    else()
 #        message(FATAL_ERROR "MongoDB C driver not found. Please install libmongoc and libbson.")
 #    endif()
@@ -145,87 +268,26 @@ if (USE_MONGODB)
     message(STATUS "Use bundled MongoDB C driver")
 endif()
 
-# Define the list of header files
-set(HEADERS
-    "./include/logger.h"
-    "./include/database_interface.h"
-    "./include/sqlite_database.h"
-    "./include/mock_database.h"
-    "./include/log_writer.h"
-    "./include/log_reader.h"
-    "./include/log_entry.h"
-    "./include/thread_pool.h"
-    "./include/log_export.h"
-    "./include/fs_helper.h"
-    "./include/log_config.h"
-    "./include/ini_parser.h"
-    "./include/log_strings.h"
-    "./include/database_helper.h"
-    "./include/base64.h"
-    "./include/log_crypto.h"
-    "./include/database_factory.h"
-    "./include/query_builder.h"
-    "./include/database_schema.h"
-    "./include/sql_builder.h"
-    "./include/log_manager.h"
-)
-
-# Define the list of source files
-set(SOURCES
-    "./src/logger.cpp"
-    "./src/sqlite_database.cpp"
-    "./src/mock_database.cpp"
-    "./src/log_writer.cpp"
-    "./src/log_reader.cpp"
-    "./src/thread_pool.cpp"
-    "./src/log_export.cpp"
-    "./src/fs_helper.cpp"
-    "./src/log_config.cpp"
-    "./src/ini_parser.cpp"
-    "./src/database_helper.cpp"
-    "./src/base64.cpp"
-    "./src/log_crypto.cpp"
-    "./src/database_factory.cpp"
-    "./src/query_builder.cpp"
-    "./src/database_schema.cpp"
-    "./src/sql_builder.cpp"
-    "./src/log_manager.cpp"
-)
-
-# Add MySQL header and source files if USE_MYSQL is enabled
-if (USE_MYSQL)
-    list(APPEND HEADERS "./include/mysql_database.h")
-    list(APPEND SOURCES "./src/mysql_database.cpp")
-endif()
-
-# Add PostgreSQL header and source files if USE_PostgreSQL is enabled
-if (USE_POSTGRESQL)
-    list(APPEND HEADERS "./include/postgresql_database.h")
-    list(APPEND SOURCES "./src/postgresql_database.cpp")
-endif()
-
-# Add MongoDB header and source files if USE_MONGODB is enabled
-if (USE_MONGODB)
-    list(APPEND HEADERS "./include/mongodb_database.h")
-    list(APPEND SOURCES "./src/mongodb_database.cpp")
-    list(APPEND HEADERS "./include/document_builder.h")
-    list(APPEND SOURCES "./src/document_builder.cpp")
-endif()
-
-# Create the library (shared or static based on BUILD_SHARED_LIBS)
-if (BUILD_SHARED_LIBS)
-    add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES})
-else()
-    add_library(${PROJECT_NAME} STATIC ${HEADERS} ${SOURCES})
-endif()
-
 # Library target
-target_include_directories(${PROJECT_NAME} PUBLIC
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Version info for shared lib
+ if (BUILD_SHARED_LIBS)
+     set_target_properties(${PROJECT_NAME} PROPERTIES
+        OUTPUT_NAME ${PROJECT_NAME}
+        VERSION ${SQLOGGER_VERSION_FULL}
+        SOVERSION ${SQLOGGER_VERSION_MAJOR}
+     )
+ endif()
 
 # Link SQLite3 library
-if (USE_SYSTEM_SQLITE)
+if (SQLG_USE_SYSTEM_SQLITE)
     target_link_libraries(${PROJECT_NAME} PRIVATE SQLite::SQLite3)
 else()
     if (BUILD_SHARED_LIBS)
@@ -235,18 +297,18 @@ else()
     endif()
 endif()
 
-# Link MySQL library if USE_MYSQL is enabled
-if (USE_MYSQL)
+# Link MySQL library if SQLG_USE_MYSQL is enabled
+if (SQLG_USE_MYSQL)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${MySQL_LIBRARIES})
 endif()
 
-# Link PostgreSQL library if USE_POSTGRESQL is enabled
-if (USE_POSTGRESQL)
+# Link PostgreSQL library if SQLG_USE_POSTGRESQL is enabled
+if (SQLG_USE_POSTGRESQL)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${PostgreSQL_LIBRARIES})
 endif()
 
-# Link MongoDB library if USE_MONGODB is enabled
-if (USE_MONGODB)
+# Link MongoDB library if SQLG_USE_MONGODB is enabled
+if (SQLG_USE_MONGODB)
     if (BUILD_SHARED_LIBS)
         target_link_libraries(${PROJECT_NAME} PRIVATE mongoc_shared)
     else()
@@ -254,19 +316,25 @@ if (USE_MONGODB)
     endif()
 endif()
 
-if (USE_SOURCE_INFO)
+# Link stduuid library if SQLG_USE_SOURCE_INFO is enabled
+if (SQLG_USE_SOURCE_INFO)
     target_link_libraries(${PROJECT_NAME} PRIVATE stduuid)
 endif()
 
-# Link OpenSSL library if USE_AES is enabled
-if (USE_AES)
+# Link Jsoncpp and Drogon library if SQLG_USE_REST is enabled
+if (SQLG_USE_REST)
+    target_link_libraries(${PROJECT_NAME} PRIVATE drogon)
+endif()
+
+# Link OpenSSL library if SQLG_USE_AES is enabled
+if (SQLG_USE_AES)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
     if (MSVC)
         target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::applink)
     endif()
 endif()
 
-# Link additional libraries for Windows
+# Link additional libraries for Windows (needed for SQLite3 build)
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE Rpcrt4)
 endif()
@@ -276,24 +344,32 @@ if (WIN32 AND BUILD_SHARED_LIBS)
     target_compile_definitions(${PROJECT_NAME} PRIVATE LOGGER_EXPORTS)
 endif()
 
-if (USE_SOURCE_INFO)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_SOURCE_INFO)
+if (SQLG_USE_SOURCE_INFO)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SQLG_USE_SOURCE_INFO)
 endif()
 
-if (USE_AES)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_AES)
+if (SQLG_USE_REST)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SQLG_USE_REST)
 endif()
 
-if (USE_MYSQL)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_MYSQL)
+if (SQLG_USE_EXTERNAL_JSON_PARSER)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SQLG_USE_EXTERNAL_JSON_PARSER)
 endif()
 
-if (USE_POSTGRESQL)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_POSTGRESQL)
+if (SQLG_USE_AES)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SQLG_USE_AES)
 endif()
 
-if (USE_MONGODB)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_MONGODB)
+if (SQLG_USE_MYSQL)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SQLG_USE_MYSQL)
+endif()
+
+if (SQLG_USE_POSTGRESQL)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SQLG_USE_POSTGRESQL)
+endif()
+
+if (SQLG_USE_MONGODB)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SQLG_USE_MONGODB)
 endif()
 
 # Set output directories for the library
@@ -308,46 +384,59 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR})
 
 # Include SQLite amalgamation directory if not using system SQLite
-if (NOT USE_SYSTEM_SQLITE)
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/sqlite-amalgamation)
+if (NOT SQLG_USE_SYSTEM_SQLITE)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/sqlite-amalgamation)
 endif()
 
-if(USE_SOURCE_INFO)
+if(SQLG_USE_SOURCE_INFO)
     set(UUID_SYSTEM_GENERATOR ON CACHE BOOL "Enable operating system uuid generator" FORCE)
-    #include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/include)
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/gsl)
+    #target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/include)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/gsl)
 endif()
 
 # Include MySQL directory
-if (USE_MYSQL)
-    include_directories(${PROJECT_NAME} PRIVATE ${MySQL_INCLUDE_DIRS})
+if (SQLG_USE_MYSQL)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${MySQL_INCLUDE_DIRS})
 endif()
 
-if (USE_POSTGRESQL AND MSVC)
-    include_directories(${PROJECT_NAME} PRIVATE ${PostgreSQL_INCLUDE_DIRS}/port/win32_msvc)
+# Include PostgreSQL Windows-specific directory
+if (SQLG_USE_POSTGRESQL AND MSVC)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${PostgreSQL_INCLUDE_DIRS}/port/win32_msvc)
 endif()
 
-if (USE_MONGODB)
-    #include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src)
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
+# Include MongoDB and BSON directory
+if (SQLG_USE_MONGODB)
+    #target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
 
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
-    include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
+endif()
+
+# Include Drogon directory
+if (SQLG_USE_REST)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/drogon/lib/inc)
+endif()
+
+# Include nlohmann JSON directory
+if (SQLG_USE_EXTERNAL_JSON_PARSER)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/json/include)
 endif()
 
 # Install the library
 install(TARGETS ${PROJECT_NAME}
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 # Install header files
-install(FILES ${HEADERS} DESTINATION include)
+install(DIRECTORY "include/${PROJECT_NAME}" DESTINATION include)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sqlogger_config.h" DESTINATION "include/${PROJECT_NAME}")
 
-# Configure and build tests if BUILD_TEST is enabled
-if (BUILD_TEST)
+# Configure and build tests if SQLG_BUILD_TEST is enabled
+if (SQLG_BUILD_TEST)
     set(TEST_NAME test_${PROJECT_NAME})
 
     set(SOURCE_TEST_logger
@@ -360,6 +449,49 @@ if (BUILD_TEST)
         add_executable(${TEST_NAME} ${SOURCE_TEST_logger} ${HEADERS} ${SOURCES})
     endif()
 
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+    # Include SQLite amalgamation directory if not using system SQLite
+if (NOT SQLG_USE_SYSTEM_SQLITE)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/sqlite-amalgamation)
+endif()
+
+if(SQLG_USE_SOURCE_INFO)
+    #set(UUID_SYSTEM_GENERATOR ON CACHE BOOL "Enable operating system uuid generator" FORCE)
+    #target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/include)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/stduuid/gsl)
+endif()
+
+# Include MySQL directory
+if (SQLG_USE_MYSQL)
+    target_include_directories(${TEST_NAME} PRIVATE ${MySQL_INCLUDE_DIRS})
+endif()
+
+# Include PostgreSQL Windows-specific directory
+if (SQLG_USE_POSTGRESQL AND MSVC)
+    target_include_directories(${TEST_NAME} PRIVATE ${PostgreSQL_INCLUDE_DIRS}/port/win32_msvc)
+endif()
+
+# Include MongoDB and BSON directory
+if (SQLG_USE_MONGODB)
+    #target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/mongo-c-driver/src)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
+
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libmongoc/src)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_BINARY_DIR}/3rdparty/mongo-c-driver/src/libbson/src)
+endif()
+
+# Include Drogon directory
+if (SQLG_USE_REST)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/drogon/lib/inc)
+endif()
+
+# Include nlohmann JSON directory
+if (SQLG_USE_EXTERNAL_JSON_PARSER)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/json/include)
+endif()
+
     target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME})
 
     # Set output directory for tests
@@ -367,35 +499,57 @@ if (BUILD_TEST)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 
-    if (USE_SOURCE_INFO)
-        target_link_libraries(${TEST_NAME} PRIVATE stduuid)
-    endif()
-
-    if (USE_AES)
-        target_link_libraries(${TEST_NAME} PRIVATE OpenSSL::Crypto)
-        if (MSVC)
-            target_link_libraries(${TEST_NAME} PRIVATE OpenSSL::applink)
+    if (SQLG_USE_SYSTEM_SQLITE)
+    target_link_libraries(${TEST_NAME} PRIVATE SQLite::SQLite3)
+    else()
+        if (BUILD_SHARED_LIBS)
+            target_link_libraries(${TEST_NAME} PRIVATE sqlite3-shared)    
+        else()
+            target_link_libraries(${TEST_NAME} PRIVATE sqlite3-static)
         endif()
     endif()
 
-    if (USE_MYSQL)
-        target_compile_definitions(${TEST_NAME} PRIVATE USE_MYSQL)
+    if (SQLG_USE_SOURCE_INFO)
+        target_link_libraries(${TEST_NAME} PRIVATE stduuid)
     endif()
 
-    if (USE_POSTGRESQL)
-        target_compile_definitions(${TEST_NAME} PRIVATE USE_POSTGRESQL)
+    if (SQLG_USE_REST)
+        target_link_libraries(${TEST_NAME} PRIVATE drogon)
     endif()
 
-    if (USE_MONGODB)
-        target_compile_definitions(${TEST_NAME} PRIVATE USE_MONGODB)
+    if (SQLG_USE_AES)
+        target_link_libraries(${TEST_NAME} PRIVATE OpenSSL::Crypto)
+        if (MSVC)
+            target_link_libraries(${TEST_NAME} PRIVATE OpenSSL::applink)
+       endif()
     endif()
 
-    if (USE_SOURCE_INFO)
-        target_compile_definitions(${TEST_NAME} PRIVATE USE_SOURCE_INFO)
+    if (SQLG_USE_EXTERNAL_JSON_PARSER)
+        target_compile_definitions(${TEST_NAME} PRIVATE SQLG_USE_EXTERNAL_JSON_PARSER)
     endif()
 
-    if (USE_AES)
-        target_compile_definitions(${TEST_NAME} PRIVATE USE_AES)
+    if (SQLG_USE_MYSQL)
+        target_compile_definitions(${TEST_NAME} PRIVATE SQLG_USE_MYSQL)
+    endif()
+
+    if (SQLG_USE_POSTGRESQL)
+        target_compile_definitions(${TEST_NAME} PRIVATE SQLG_USE_POSTGRESQL)
+    endif()
+
+    if (SQLG_USE_MONGODB)
+        target_compile_definitions(${TEST_NAME} PRIVATE SQLG_USE_MONGODB)
+    endif()
+
+    if (SQLG_USE_SOURCE_INFO)
+        target_compile_definitions(${TEST_NAME} PRIVATE SQLG_USE_SOURCE_INFO)
+    endif()
+
+    if (SQLG_USE_AES)
+        target_compile_definitions(${TEST_NAME} PRIVATE SQLG_USE_AES)
+    endif()
+
+    if (SQLG_USE_REST)
+        target_compile_definitions(${TEST_NAME} PRIVATE SQLG_USE_REST)
     endif()
 
     # Enable testing and add a test target
@@ -404,10 +558,11 @@ if (BUILD_TEST)
 
     # Install the test executable
     install(TARGETS ${TEST_NAME} RUNTIME DESTINATION bin)
+
 endif()
 
-# Configure Doxygen documentation generation if BUILD_DOC is enabled
-if (BUILD_DOC)
+# Configure Doxygen documentation generation if SQLG_BUILD_DOC is enabled
+if (SQLG_BUILD_DOC)
     # Find Doxygen
     find_package(Doxygen REQUIRED)
 
@@ -440,3 +595,4 @@ if (BUILD_DOC)
         message(WARNING "Doxygen not found, documentation will not be generated.")
     endif()
 endif()
+

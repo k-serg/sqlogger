@@ -4,3 +4,8 @@
 [submodule "3rdparty/stduuid"]
 	path = 3rdparty/stduuid
 	url = https://github.com/mariusbancila/stduuid.git
+[submodule "3rdparty/json"]
+	path = 3rdparty/json
+	url = https://github.com/nlohmann/json.git
+	branch = master
+	

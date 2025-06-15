@@ -21,29 +21,35 @@
 #include <iostream>
 #include <thread>
 #include <filesystem>
-#include "log_manager.h"
+#include "sqlogger/log_manager.h"
+#include "sqlogger/transport/transport_factory.h"
 
-#ifdef USE_AES
+#ifdef SQLG_USE_REST
+    #pragma message("REST support enabled.")
+    #include "sqlogger/transport/backends/rest_transport.h"
+#endif
+
+#ifdef SQLG_USE_AES
     #pragma message("AES support enabled.")
 #endif
 
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     #pragma message("SOURCE INFO support enabled.")
     #include <3rdparty/stduuid/include/uuid.h>
 #endif
 
-// Set "USE_MYSQL" option to "ON" in CMake parameters, to enable MySQL support.
-#ifdef USE_MYSQL
+// Set "SQLG_USE_MYSQL" option to "ON" in CMake parameters, to enable MySQL support.
+#ifdef SQLG_USE_MYSQL
     #pragma message("MySQL support enabled.")
 #endif
 
-// Set "USE_POSTGRESQL" option to "ON" in CMake parameters, to enable PostgreSQL support.
-#ifdef USE_POSTGRESQL
+// Set "SQLG_USE_POSTGRESQL" option to "ON" in CMake parameters, to enable PostgreSQL support.
+#ifdef SQLG_USE_POSTGRESQL
     #pragma message("PostgreSQL support enabled.")
 #endif
 
-// Set "USE_MONGODB" option to "ON" in CMake parameters, to enable MongoDB support.
-#ifdef USE_MONGODB
+// Set "SQLG_USE_MONGODB" option to "ON" in CMake parameters, to enable MongoDB support.
+#ifdef SQLG_USE_MONGODB
     #pragma message("MongoDB support enabled.")
 #endif
 
@@ -51,7 +57,7 @@
 constexpr auto TEST_LOGGER_NAME = "test_logger";
 constexpr auto TEST_NUM_THREADS = 4;
 constexpr auto TEST_USE_SYNC_MODE = true;
-constexpr auto TEST_ONLY_FILE_NAME = true;
+constexpr auto TEST_ONLY_FILE_NAME = false;
 constexpr auto TEST_USE_BATCH = true;
 constexpr auto TEST_BATCH_SIZE = 1000;
 constexpr LogLevel TEST_LOG_LEVEL = LogLevel::Trace;
@@ -74,10 +80,23 @@ constexpr auto TEST_ENC_DEC_PASS_KEY = "iknowyoursecrets";
 constexpr auto TEST_ENC_DEC_STRING = "test_string";
 constexpr auto TEST_DATABASE_FILE = "test_logs.db";
 
-static LogConfig::Config testConfig;
-static Logger* testLogger = nullptr;
+#ifdef SQLG_USE_REST
+// Test transport params
+constexpr auto TEST_TRANSPORT_TYPE_STR = TRANSPORT_TYPE_STR_REST;
+constexpr auto TEST_TRANSPORT_HOST = "0.0.0.0";
+constexpr auto TEST_TRANSPORT_PORT = 8080;
 
-#ifdef USE_SOURCE_INFO
+TransportType TEST_TRANSPORT_TYPE = [ & ]()
+{
+    return TransportHelper::stringToType(TEST_TRANSPORT_TYPE_STR);
+}
+();
+#endif
+
+static LogConfig::Config testConfig;
+static SQLogger* testLogger = nullptr;
+
+#ifdef SQLG_USE_SOURCE_INFO
 // Test SourceInfo params.
 constexpr auto TEST_SOURCE_NAME = "test_source";
 constexpr auto TEST_SOURCE_UUID = "4472ab03-4184-44ab-921c-751a702c42ca";
@@ -123,9 +142,14 @@ static LogConfig::Config getDefaultConfig()
     config.databaseType = TEST_DATABASE_TYPE;
     config.useBatch = TEST_USE_BATCH;
     config.batchSize = TEST_BATCH_SIZE;
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     config.sourceUuid = TEST_SOURCE_UUID;
     config.sourceName = TEST_SOURCE_NAME;
+#endif
+#ifdef SQLG_USE_REST
+    config.transportType = TEST_TRANSPORT_TYPE;
+    config.transportHost = TEST_TRANSPORT_HOST;
+    config.transportPort = TEST_TRANSPORT_PORT;
 #endif
 
     return config;
@@ -164,14 +188,14 @@ namespace
         return testConfig;
     }
 
-    Logger& getTestLogger(const LogConfig::Config& config)
+    SQLogger& getTestLogger(const LogConfig::Config& config)
     {
         if(!testLogger)
         {
             testLogger = & LogManager::getInstance().createLogger(
                              config.name.value(),
                              config
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
                              , SourceInfo { 0, // id will be obtained later from the database.
                                             config.sourceUuid.value(),
                                             config.sourceName.value()
@@ -179,19 +203,20 @@ namespace
 #endif
                          );
         }
+
         return *testLogger;
     }
 }
 
 void clearLogs(
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     const bool clearSources = true
 #endif
 )
 {
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
     logger.clearLogs(
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
               clearSources
 #endif
           );
@@ -258,7 +283,7 @@ void testBasicFunctionality()
     std::string testName = "Basic functionality test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -268,9 +293,9 @@ void testBasicFunctionality()
     const std::string errorMsg("This is an error message");
 
     // Log some messages
-    LOG_INFO(logger) << infoMsg;
-    LOG_WARNING(logger) << warningMsg;
-    LOG_ERROR(logger) << errorMsg;
+    SQLOG_INFO(logger) << infoMsg;
+    SQLOG_WARNING(logger) << warningMsg;
+    SQLOG_ERROR(logger) << errorMsg;
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -310,7 +335,7 @@ void testFilterByLevel()
     std::string testName = "Filter by level test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -319,7 +344,7 @@ void testFilterByLevel()
     const std::string msg("Level-specific message");
 
     // Log a message
-    LOG_INFO(logger) << msg;
+    SQLOG_INFO(logger) << msg;
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -349,7 +374,7 @@ void testFilterByThreadId()
     std::string testName = "Filter By ThreadId test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -357,7 +382,7 @@ void testFilterByThreadId()
     const std::string msg("Thread-specific message");
 
     // Log a message in the current thread
-    LOG_INFO(logger) << msg;
+    SQLOG_INFO(logger) << msg;
 
     // Get the current thread ID
     std::string currentThreadId = LogHelper::threadIdToString(std::this_thread::get_id());
@@ -390,7 +415,7 @@ void testFilterByFile()
     std::string testName = "Filter By File test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -398,7 +423,7 @@ void testFilterByFile()
     const std::string msg("File-specific message");
 
     // Log a message
-    LOG_INFO(logger) << msg;
+    SQLOG_INFO(logger) << msg;
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -406,13 +431,10 @@ void testFilterByFile()
         std::cerr << "Timeout while waiting for task queue to empty" << std::endl;
     }
 
-    std::string file;
-
     // Retrieve logs for the current file
-    if(testConfig.onlyFileNames.value() == true)
-        file = std::filesystem::path(__FILE__).filename().string();
-    else
-        file = __FILE__;
+    std::string file = testConfig.onlyFileNames.value()
+                       ? FSHelper::toFilename(__FILE__)
+                       : __FILE__;
 
     // flush batched logs for testing purposes
     logger.flush();
@@ -435,7 +457,7 @@ void testFilterByFunction()
     std::string testName = "Filter By Function test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -443,7 +465,7 @@ void testFilterByFunction()
     const std::string msg("Function-specific message");
 
     // Log a message
-    LOG_INFO(logger) << msg;
+    SQLOG_INFO(logger) << msg;
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -473,14 +495,14 @@ void testFilterByTimestampRange()
     std::string testName = "Filter By Timestamp Range test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
 
     // Log a message
     const std::string msg("Timestamp-specific message");
-    LOG_INFO(logger) << msg;
+    SQLOG_INFO(logger) << msg;
 
     // Get the current timestamp
     std::string currentTime = LogHelper::getCurrentTimestamp();
@@ -513,13 +535,13 @@ void testClearLogs()
     std::string testName = "Clear Logs test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
 
     // Log a message
-    LOG_INFO(logger) << "Message to be cleared";
+    SQLOG_INFO(logger) << "Message to be cleared";
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -553,7 +575,7 @@ void testMultiThread()
     std::string testName = "Multi Thread test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     logger.clearLogs();
 
@@ -571,7 +593,7 @@ void testMultiThread()
             {
                 {
                     std::lock_guard<std::mutex> lock(logMutex);
-                    LOG_INFO(logger) << "Thread " << threadId << ", log " << j;
+                    SQLOG_INFO(logger) << "Thread " << threadId << ", log " << j;
                 }
                 logsWritten++;
             }
@@ -632,7 +654,7 @@ void testMultiFilters()
     std::string testName = "Multi Filters test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -641,9 +663,9 @@ void testMultiFilters()
     const std::string warningMsg("This is a warning message");
     const std::string errorMsg("This is an error message");
 
-    LOG_INFO(logger) << infoMsg;
-    LOG_WARNING(logger) << warningMsg;
-    LOG_ERROR(logger) << errorMsg;
+    SQLOG_INFO(logger) << infoMsg;
+    SQLOG_WARNING(logger) << warningMsg;
+    SQLOG_ERROR(logger) << errorMsg;
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -667,13 +689,10 @@ void testMultiFilters()
     fileFilter.type = Filter::Type::File;
     fileFilter.field = fileFilter.typeToField();
 
-    std::string file;
-
     // Retrieve logs for the current file
-    if(testConfig.onlyFileNames.value() == true)
-        fileFilter.value = std::filesystem::path(__FILE__).filename().string();
-    else
-        fileFilter.value = __FILE__;
+    fileFilter.value = testConfig.onlyFileNames.value()
+                       ? FSHelper::toFilename(__FILE__)
+                       : __FILE__;
 
     fileFilter.op = "=";
     filters.push_back(fileFilter);
@@ -718,7 +737,7 @@ void testFileExport()
     std::string testName = "File Export test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -728,9 +747,9 @@ void testFileExport()
     const std::string errorMsg("This is an error message");
 
     // Log some messages
-    LOG_INFO(logger) << infoMsg;
-    LOG_WARNING(logger) << warningMsg;
-    LOG_ERROR(logger) << errorMsg;
+    SQLOG_INFO(logger) << infoMsg;
+    SQLOG_WARNING(logger) << warningMsg;
+    SQLOG_ERROR(logger) << errorMsg;
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -764,11 +783,11 @@ void testFileExport()
     outFile.close();
 
     // Test static export methods for the entry list
-    Logger::exportTo(path.string() + ".txt", LogExport::Format::TXT, allLogs, delimiter, false);
-    Logger::exportTo(path.string() + ".csv", LogExport::Format::CSV, allLogs);
-    Logger::exportTo(path.string() + ".xml", LogExport::Format::XML, allLogs);
-    Logger::exportTo(path.string() + ".json", LogExport::Format::JSON, allLogs);
-    Logger::exportTo(path.string() + ".yaml", LogExport::Format::YAML, allLogs);
+    SQLogger::exportTo(path.string() + ".txt", LogExport::Format::TXT, allLogs, delimiter, false);
+    SQLogger::exportTo(path.string() + ".csv", LogExport::Format::CSV, allLogs);
+    SQLogger::exportTo(path.string() + ".xml", LogExport::Format::XML, allLogs);
+    SQLogger::exportTo(path.string() + ".json", LogExport::Format::JSON, allLogs);
+    SQLogger::exportTo(path.string() + ".yaml", LogExport::Format::YAML, allLogs);
 
     // Unknown Format
     //Logger::exportTo(path.string() + ".bad", static_cast<LogExport::Format>(10), allLogs, delimiter, false);
@@ -848,7 +867,7 @@ void testPerformance()
     std::string testName = "Performance test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -861,7 +880,7 @@ void testPerformance()
 
     for(int i = 0; i < numLogs; ++i)
     {
-        LOG_INFO(logger) << "Log message " << i;
+        SQLOG_INFO(logger) << "Log message " << i;
     }
 
     // Wait until all logs are written
@@ -889,7 +908,7 @@ void testPerformance()
     ss << "Logged " << numLogs << " messages in " << duration << " ms" << std::endl;
 
     // Get Stats
-    ss << std::endl << Logger::getFormattedStats(stats) << std::endl;
+    ss << std::endl << SQLogger::getFormattedStats(stats) << std::endl;
 
     showMessage(ss.str());
 
@@ -924,7 +943,7 @@ void testConfigSaveLoad()
     assert(loadedConfig.databaseType == config.databaseType);
     assert(loadedConfig.useBatch == config.useBatch);
     assert(loadedConfig.batchSize == config.batchSize);
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     assert(loadedConfig.sourceUuid == config.sourceUuid);
     assert(loadedConfig.sourceName == config.sourceName);
 #endif
@@ -939,10 +958,10 @@ void testSourceInfo()
 {
     std::string testName = "Source Info test";
 
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs(true);
@@ -956,7 +975,7 @@ void testSourceInfo()
     const std::string msg = "This is a message from " + testConfig.sourceName.value();
 
     // Log a message with this source
-    LOG_INFO(logger) << msg;
+    SQLOG_INFO(logger) << msg;
 
     // Wait until all logs are written
     if(!logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC)))
@@ -985,7 +1004,7 @@ void testSourceInfo()
 
     showMessage(testName + " passed!\n");
 #else
-    showMessage(testName + " skipped (USE_SOURCE_INFO not defined).");
+    showMessage(testName + " skipped (SQLG_USE_SOURCE_INFO not defined).");
 #endif
 }
 
@@ -996,10 +1015,10 @@ void testGetAllSources()
 {
     std::string testName = "Get All Sources test";
 
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database and sources before starting the test
     logger.clearLogs(true);
@@ -1016,7 +1035,7 @@ void testGetAllSources()
 
     showMessage(testName + " passed!\n");
 #else
-    showMessage(testName + " skipped (USE_SOURCE_INFO not defined).");
+    showMessage(testName + " skipped (SQLG_USE_SOURCE_INFO not defined).");
 #endif
 }
 
@@ -1028,10 +1047,10 @@ void testGetSourceByUuid()
     std::string testName = "Get Source By Uuid test";
 
 
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs(true);
@@ -1049,7 +1068,7 @@ void testGetSourceByUuid()
 
     showMessage(testName + " passed!\n");
 #else
-    showMessage(testName + " skipped (USE_SOURCE_INFO not defined).");
+    showMessage(testName + " skipped (SQLG_USE_SOURCE_INFO not defined).");
 #endif
 }
 
@@ -1072,10 +1091,7 @@ void testEncryptDecrypt()
  */
 void testMultiConnectionStress()
 {
-    std::string testName = "Multi-Connection Stress test";
-    showMessage(testName + " started...");
-
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     switch(testConfig.databaseType.value())
     {
@@ -1088,10 +1104,13 @@ void testMultiConnectionStress()
         case DataBaseType::SQLite:
         default:
         {
-            std::cout << std::endl << "Skipping multi-connection test" << std::endl;
+            std::cout << std::endl << "Skipping multi-connection test" << std::endl << std::endl;
             return;
         }
     }
+
+    std::string testName = "Multi-Connection Stress test";
+    showMessage(testName + " started...");
 
     const int numConnections = TEST_STRESS_NUM_CONNECTIONS; // Number of connections with unique sources
     const int logsPerConnection = TEST_STRESS_LOGS_PER_CONNECTION; // Logs per connection
@@ -1100,7 +1119,7 @@ void testMultiConnectionStress()
 
     // Clear existing logs
     logger.clearLogs(
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
               true
 #endif
           );
@@ -1119,22 +1138,22 @@ void testMultiConnectionStress()
         std::string loggerName = loggerNamePrefix + std::to_string(connId);
         config.name = loggerName;
 
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
         // Generate unique source info
         SourceInfo srcInfo;
         srcInfo.name = sourceNamePrefix + std::to_string(connId);
         srcInfo.uuid = generateUUID();
 
         // Create logger with unique source
-        Logger& connLogger = LogManager::getInstance().createLogger(loggerName, config, srcInfo);
+        SQLogger& connLogger = LogManager::getInstance().createLogger(loggerName, config, srcInfo);
 #else
-        Logger& connLogger = LogManager::getInstance().createLogger(loggerName, config);
+        SQLogger& connLogger = LogManager::getInstance().createLogger(loggerName, config);
 #endif
 
         // Write logs
         for(int i = 0; i < logsPerConnection; ++i)
         {
-            LOG_INFO(connLogger) << "Stress log " << i << " from source " << connId;
+            SQLOG_INFO(connLogger) << "Stress log " << i << " from source " << connId;
             logsWritten++;
         }
     };
@@ -1154,7 +1173,7 @@ void testMultiConnectionStress()
     // Verification
     logger.waitUntilEmpty(std::chrono::milliseconds(TEST_WAIT_UNTIL_EMPTY_MSEC));
 
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     // Verify source-specific logging
     for(int i = 0; i < numConnections; ++i)
     {
@@ -1198,7 +1217,7 @@ void testLimitOffset()
     std::string testName = "Limit-Offset test";
     showMessage(testName + " started...");
 
-    Logger& logger = getTestLogger(getTestConfig());
+    SQLogger& logger = getTestLogger(getTestConfig());
 
     // Clear the database before starting the test
     logger.clearLogs();
@@ -1209,7 +1228,7 @@ void testLimitOffset()
 
     for(int i = 0; i < numLogs; ++i)
     {
-        LOG_INFO(logger) << "Log " << i;
+        SQLOG_INFO(logger) << "Log " << i;
     }
 
     // Wait until all logs are written
@@ -1236,6 +1255,112 @@ void testLimitOffset()
     assert(limitedLogs[0].message == allLogs[offset].message);
     assert(limitedLogs[1].message == allLogs[offset + 1].message);
     assert(limitedLogs[2].message == allLogs[offset + 2].message);
+
+    showMessage(testName + " passed!\n");
+}
+
+void testEntryConversion()
+{
+    std::string testName = "Entry Conversion test";
+    showMessage(testName + " started...");
+
+    const int numEntries = 10000;
+    const int warmupRuns = 3;
+    const int measuredRuns = 3;
+
+    // Generate test entries
+    auto generateTestEntries = [](int count)
+    {
+        std::vector<LogEntry> entries;
+        entries.reserve(count);
+
+        for(int i = 0; i < count; ++i)
+        {
+            LogEntry entry;
+            entry.id = i;
+            entry.timestamp = "2025-01-01 12:00:00";
+            entry.level = (i % 2 == 0)
+                          ? LogHelper::levelToString(LogLevel::Info)
+                          : LogHelper::levelToString(LogLevel::Error);
+            entry.message = "Test message " + std::to_string(i);
+            entry.file = "file_" + std::to_string(i % 10) + ".cpp";
+            entry.line = i % 1000;
+            entry.threadId = "12345";
+#ifdef SQLG_USE_SOURCE_INFO
+            entry.sourceId = 1;
+            entry.sourceUuid = TEST_SOURCE_UUID;
+            entry.sourceName = TEST_SOURCE_NAME;
+#endif
+            entries.emplace_back(entry);
+        }
+        return entries;
+    };
+
+    LogEntryList entries = generateTestEntries(numEntries);
+    std::string jsonData;
+    LogEntryList parsedEntries;
+
+    std::stringstream ss;
+    ss << std::endl << "*** JSON Serialization Performance Test ***" << std::endl;
+    ss << "Entries: " << numEntries << std::endl;
+    ss << "Runs: " << measuredRuns << " times" << std::endl;
+    ss << "Using " <<
+#ifdef SQLG_USE_EXTERNAL_JSON_PARSER
+       "External"
+#else
+       "Internal"
+#endif
+       << " JSON Parser" << std::endl;
+
+    // Warmup
+    for(int i = 0; i < warmupRuns; ++i)
+    {
+        jsonData = LogSerializer::Json::serializeLogs(entries);
+        parsedEntries = LogSerializer::Json::parseLogs(jsonData);
+    }
+
+    // Average serialization time
+    double avgSerializeTime = 0;
+    for(int i = 0; i < measuredRuns; ++i)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        jsonData = LogSerializer::Json::serializeLogs(entries);
+        auto end = std::chrono::high_resolution_clock::now();
+        avgSerializeTime += std::chrono::duration<double, std::milli>(end - start).count();
+    }
+    avgSerializeTime /= measuredRuns;
+
+    ss << "Serialize avg: " << avgSerializeTime << " ms" << std::endl;
+    ss << "Serialize speed: " << (numEntries / avgSerializeTime * 1000) << " entries/sec" << std::endl;
+
+    // Average deserialization time
+    double avgParseTime = 0;
+    for(int i = 0; i < measuredRuns; ++i)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        parsedEntries = LogSerializer::Json::parseLogs(jsonData);
+        auto end = std::chrono::high_resolution_clock::now();
+        avgParseTime += std::chrono::duration<double, std::milli>(end - start).count();
+    }
+    avgParseTime /= measuredRuns;
+
+    ss << "Parse avg: " << avgParseTime << " ms" << std::endl;
+    ss << "Parse speed: " << (numEntries / avgParseTime * 1000) << " entries/sec" << std::endl;
+
+    // Check entries
+    assert(entries.size() == parsedEntries.size());
+    for(size_t i = 0; i < entries.size(); ++i)
+    {
+        assert(entries[i].id == parsedEntries[i].id);
+        assert(entries[i].message == parsedEntries[i].message);
+        // TODO: Other fields
+    }
+
+    // JSON size
+    ss << "JSON size: " << jsonData.size() / 1024 << " KB ("
+       << jsonData.size() / numEntries << " bytes/entry)" << std::endl;
+
+    showMessage(ss.str());
 
     showMessage(testName + " passed!\n");
 }
@@ -1306,7 +1431,7 @@ int main(int argc, char* argv[])
     }
 
     // Create logger
-    Logger& logger = getTestLogger(config);
+    SQLogger& logger = getTestLogger(config);
 
     std::string TEST_CONN_STRING =  LogConfig::configToConnectionString(config);
 
@@ -1355,13 +1480,13 @@ int main(int argc, char* argv[])
     std::cout << "Batch Insert: " << (useBatch ? "ON" : "OFF") << std::endl;
     std::cout << (useBatch ?  std::string("Batch size: " + std::to_string(logger.getBatchSize()) + "\n") : "");
 
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
     std::cout << "Source Info: ON" << std::endl;
 #else
     std::cout << "Source Info: OFF" << std::endl;
 #endif
 
-#ifdef USE_AES
+#ifdef SQLG_USE_AES
     std::cout << "AES Support: ON" << std::endl;
 #else
     std::cout << "AES Support: OFF" << std::endl;
@@ -1381,7 +1506,7 @@ int main(int argc, char* argv[])
         testFilterByTimestampRange();
         testMultiFilters();
         testLimitOffset();
-#ifdef USE_SOURCE_INFO
+#ifdef SQLG_USE_SOURCE_INFO
         testSourceInfo();
         testGetSourceByUuid();
         testGetAllSources();
@@ -1391,6 +1516,7 @@ int main(int argc, char* argv[])
         testClearLogs();
         testPerformance();
         testMultiConnectionStress();
+        testEntryConversion();
 
         std::cout << "All tests passed successfully!" << std::endl << std::endl;
 
